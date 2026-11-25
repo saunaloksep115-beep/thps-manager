@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THPS Assessment – Marks Online</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--ink:#1d1d1f;--mut:#6b6b70;--line:#dcdce0;--bg:#f3f3f5;--card:#fff;--dark:#1f1f1f;--gold:#f5b700;--ok:#1a7f37;--warn:#b35c00;--bad:#c62828;--blue:#0b63c4}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+header{position:sticky;top:0;z-index:20;background:var(--dark);color:#fff;display:flex;align-items:center;gap:10px;padding:8px 14px;flex-wrap:wrap}
+header .brand{flex:1;min-width:180px}
+header .brand b{display:block;font-size:16px;letter-spacing:.2px}
+header .brand small{color:#cfcfcf;font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600;background:#333;color:#fff;cursor:pointer;border:0}
+.pill i{width:9px;height:9px;border-radius:50%;background:#999;display:inline-block}
+.pill.ok i{background:#3ddc84}.pill.wait i{background:var(--gold)}.pill.off i{background:#ff6b6b}.pill.busy i{background:#64b5ff}
+.hbtn{background:transparent;color:#fff;border:1px solid #555;border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+main{max-width:1200px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:17px;margin:0 0 10px}
+.sub{color:var(--mut);margin:0 0 12px}
+label.f{display:block;margin:10px 0}
+label.f span{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+input,select{font:inherit;padding:9px 10px;border:1px solid #c8c8cc;border-radius:8px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--dark);color:#fff;border:0;border-radius:9px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+.btn.sm{padding:5px 10px;font-size:13px;border-radius:7px}.btn.ghost{background:#e6e6ea;color:var(--ink)}
+.btn.gold{background:var(--gold);color:#1d1d1f}.btn.lite{background:#ececef;color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.row>*{flex:1;min-width:140px}
+.note{background:#fff8e1;border:1px solid #f2d27a;border-radius:9px;padding:10px 12px;margin:10px 0;font-size:14px}
+.note.bad{background:#fdecea;border-color:#f1a9a0}
+.note.good{background:#e8f5e9;border-color:#a5d6a7}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}
+.tabs button{flex:0 0 auto;background:#e6e6ea;border:0;border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer;color:var(--ink)}
+.tabs button.on{background:var(--dark);color:#fff}
+.tabs button:disabled{opacity:.4;cursor:default}
+.gridwrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff;max-height:70vh}
+table.g{border-collapse:separate;border-spacing:0;width:100%;font-size:14px}
+table.g th,table.g td{border-bottom:1px solid #ececef;border-right:1px solid #ececef;padding:0;text-align:center;white-space:nowrap}
+table.g thead th{position:sticky;background:#f7f7f9;z-index:2;font-weight:600;padding:6px 4px}
+table.g thead tr:nth-child(1) th{top:0}
+table.g thead tr:nth-child(2) th{top:31px}
+table.g thead tr:nth-child(3) th{top:62px}
+table.g thead tr:nth-child(4) th{top:97px}
+table.g .nm{position:sticky;left:0;background:#fff;z-index:1;text-align:left;padding:6px 10px;min-width:170px;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+table.g thead .nm{z-index:3;background:#f7f7f9}
+table.g td.no{color:var(--mut);padding:6px;width:34px}
+table.g input{border:0;border-radius:0;width:64px;text-align:center;padding:8px 2px;background:transparent}
+table.g input:focus{outline:2px solid var(--gold);background:#fffbea}
+table.g input.over{background:#fdecea;color:var(--bad);font-weight:700}
+table.g input.pend{background:#fff5d6}
+table.g select{border:0;padding:4px;width:76px;font-size:13px;background:transparent}
+table.g th.grp{background:#1f1f1f;color:#fff}
+table.g th.grp.t{background:#5a4a00;color:#fff}
+table.g td.tot{font-weight:700;padding:6px 8px;background:#fafafa}
+.stat{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 0;color:var(--mut);font-size:13px}
+.stat b{color:var(--ink)}
+.list{width:100%;border-collapse:collapse;font-size:14px}
+.list th,.list td{padding:8px;border-bottom:1px solid var(--line);text-align:left}
+.bar{height:8px;border-radius:6px;background:#ececef;overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--gold)}
+#toasts{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:#222;color:#fff;padding:9px 14px;border-radius:9px;font-size:14px;max-width:92vw;box-shadow:0 4px 18px #0003}
+.toast.bad{background:var(--bad)}
+.muted{color:var(--mut)}
+.ic{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px}
+.btn .ic,.tabs .ic,.hbtn .ic{margin-right:2px}
+.tabs button{display:inline-flex;align-items:center;gap:6px}
+.hbtn{display:inline-flex;align-items:center;gap:6px}
+#hLogo{height:40px;width:auto;max-width:60px;object-fit:contain;background:#fff;border-radius:8px;padding:2px;display:none}
+.lgbig{display:block;margin:0 auto 8px;max-height:110px;max-width:160px;object-fit:contain}
+.lgrow{display:flex;justify-content:center;gap:18px;margin-top:14px}
+.lgrow img{height:46px;width:auto;max-width:70px;object-fit:contain}
+.lgcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.lgcard{border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+.lgcard .pv{height:120px;display:flex;align-items:center;justify-content:center;background:#f7f7f9;border-radius:10px;margin:8px 0 10px}
+.lgcard .pv img{max-height:110px;max-width:90%;object-fit:contain}
+.lgcard .pv span{color:var(--mut);font-size:13px}
+.lgcard .row{justify-content:center}
+.lgcard .row>*{flex:0 0 auto;min-width:0}
+.ttl{display:flex;align-items:center;gap:8px}
+.small{font-size:13px}
+.plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;max-height:46vh;overflow:auto;padding:2px}
+.pp{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:#fff;cursor:pointer}
+.pp input{width:auto}
+.pph{width:36px;height:46px;border-radius:6px;overflow:hidden;flex:0 0 auto;border:1px solid #ccc;cursor:pointer;position:relative}
+.pph img{width:100%;height:100%;object-fit:cover}
+.pph:hover:after{content:"Photo";position:absolute;inset:auto 0 0 0;background:#000a;color:#fff;font-size:9px;text-align:center}
+.ppt{min-width:0}.ppt b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ppt i{font-style:normal;font-size:12px;color:var(--mut)}
+.cardpair{display:flex;gap:14px;flex-wrap:wrap}.cz{box-shadow:0 4px 16px #0002;border-radius:3mm}
+.cwrap{width:100%;overflow:hidden}.cscale{transform-origin:0 0;transform:scale(.5);width:297mm;height:105mm}
+@media (max-width:640px){.cscale{transform:scale(.3);height:63mm}}
+#printArea{display:none}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  html,body{background:#fff!important}
+  #printArea{display:block}
+  #printArea .pg{page-break-after:always;break-after:page;overflow:hidden}
+  #printArea .pg:last-child{page-break-after:auto;break-after:auto}
+  #printArea .sheet{display:grid;grid-template-columns:85.6mm 85.6mm;grid-auto-rows:54mm;gap:2.5mm 4mm;justify-content:center}
+}
+@media (max-width:640px){main{padding:10px}table.g .nm{min-width:118px;max-width:150px}header .brand small{display:none}table.g input{width:54px}.card{padding:13px}}
+</style>
+</head>
+<body>
+<header>
+  <img id="hLogo" alt="School logo">
+  <div class="brand"><b id="hSchool">THPS Marks Online</b><small id="hSub">SARRS Marks Entry · works online and offline</small></div>
+  <button class="pill off" id="pill" title="Click to upload now"><i></i><span id="pillT">Starting…</span></button>
+  <a class="hbtn" href="./" style="text-decoration:none">&#8962; School Manager</a>
+  <button class="hbtn" id="hUser" style="display:none"></button>
+</header>
+<main id="main"><div class="card">Loading…</div></main>
+<div id="toasts"></div>
+<div id="printArea"></div>
+<style id="printCss"></style>
+<script src="config.js"></script>
+<script>
+'use strict';
+/* The offline copy (downloaded from the web app) gets its link written here. */
+var API_URL_INJECT = (window.THPS_API || '');
+
+var SLOTS=['T1W1','T1W2','T1W3','T1W4','T1T1','T1T2','T1T3','T1T4','T2W5','T2W6','T2W7','T2W8','T2T5','T2T6','T2T7','T2T8',
+           'T3W1','T3W2','T3W3','T3W4','T3T1','T3T2','T3T3','T3T4','T4W5','T4W6','T4W7','T4W8','T4T5','T4T6','T4T7','T4T8'];
+var TYPES=['','A/T','Quiz','Proj.','Pres.','Res.','U/Test','S/Test','E/Exam'];
+var IN_GAS = !!(window.google && google.script && google.script.run);
+/* Windows 11 (Fluent) style line icons */
+var ICONS={
+ marks:'<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 7.5l3 3"/>',
+ chart:'<path d="M4 20V4"/><path d="M4 20h16"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/>',
+ help:'<path d="M2.5 8.5a14 14 0 0 1 19 0"/><path d="M5.5 11.8a9.5 9.5 0 0 1 13 0"/><path d="M8.7 15a5 5 0 0 1 6.6 0"/><circle cx="12" cy="18.5" r="1.1"/>',
+ setup:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+ signin:'<path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
+ signout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+ upload:'<path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5"/><path d="M12 12v8"/><path d="M9 15l3-3 3 3"/>',
+ download:'<path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19h14"/>',
+ image:'<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="9.5" r="1.8"/><path d="M21 16l-5-5-9 9"/>',
+ trash:'<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/>',
+ people:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A4.8 4.8 0 0 1 21 19"/>',
+ book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+ user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+ lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+ link:'<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'
+};
+function ic(n){return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[n]||'')+'</svg>'}
+var LOGOS=null;
+try{LOGOS=JSON.parse(localStorage.getItem('thpsm_logos')||'null')}catch(e){}
+LOGOS=LOGOS||{logos:{},ms:0};
+function setLogos(logos,ms){LOGOS={logos:logos||{},ms:ms||0};try{localStorage.setItem('thpsm_logos',JSON.stringify(LOGOS))}catch(e){}showLogos()}
+function logo(k){return (LOGOS.logos||{})[k]||''}
+function showLogos(){
+  var h=$('#hLogo');if(logo('SCHOOL')&&AUTH){h.src=logo('SCHOOL');h.style.display='block'}else h.style.display='none';
+  var b=$('#liLogo');if(b){if(logo('SCHOOL')){b.src=logo('SCHOOL');b.style.display=''}else b.style.display='none'}
+  var r=$('#liLogos');if(r)r.innerHTML=['PROVINCE','NATIONAL'].filter(logo).map(function(k){return '<img src="'+logo(k)+'" alt="'+(k==='PROVINCE'?'Province':'National')+' logo">'}).join('');
+}
+var $ = function(s){return document.querySelector(s)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+/* ---------------- device storage ---------------- */
+function ls(k,v){try{if(v===undefined){var x=localStorage.getItem(k);return x?JSON.parse(x):null}
+  if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,JSON.stringify(v))}catch(e){if(v!==undefined)toast('This device could not save. Free some space in the browser.',1);return null}}
+function apiUrl(){return API_URL_INJECT||ls('thpsm_api')||''}
+var AUTH=ls('thpsm_auth'), DATA=null, Q=[], VIEW=ls('thpsm_view')||{}, SYNCING=false, ONLINE=null, LAST=0, PAGE='marks';
+function uk(){return AUTH?String(AUTH.user).toLowerCase():''}
+function loadLocal(){DATA=ls('thpsm_data_'+uk());Q=ls('thpsm_q_'+uk())||[]}
+function saveData(){ls('thpsm_data_'+uk(),DATA)}
+function saveQ(){ls('thpsm_q_'+uk(),Q)}
+
+/* ---------------- talk to the Google Sheet ---------------- */
+function call(fn){
+  var args=[].slice.call(arguments,1);
+  if(IN_GAS) return new Promise(function(res,rej){var r=google.script.run.withSuccessHandler(res).withFailureHandler(function(e){rej(e instanceof Error?e:new Error(String(e&&e.message||e)))});r[fn].apply(r,args)});
+  var u=apiUrl(); if(!u) return Promise.reject(new Error('NOLINK'));
+  return fetch(u,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:fn,args:args})})
+    .then(function(r){return r.text()}).then(function(t){var j;try{j=JSON.parse(t)}catch(e){throw new Error('NET')}if(!j.ok)throw new Error(j.error);return j.data});
+}
+function isAuthErr(e){return /AUTH/.test(String(e&&e.message||e))}
+function errText(e){var m=String(e&&e.message||e);return m.replace(/^Error:\s*/,'').replace(/^AUTH:\s*/,'')}
+
+/* ---------------- status pill ---------------- */
+function pill(){
+  var p=$('#pill'),t=$('#pillT'),n=Q.length;
+  if(!AUTH){p.className='pill off';t.textContent='Signed out';return}
+  if(SYNCING){p.className='pill busy';t.textContent='Uploading…';return}
+  if(ONLINE===false){p.className='pill off';t.textContent=n?('Offline · '+n+' saved on device'):'Offline · all saved';return}
+  if(n){p.className='pill wait';t.textContent=n+' waiting to upload';return}
+  p.className='pill ok';t.textContent='Online · all uploaded';
+}
+function toast(m,bad){var d=document.createElement('div');d.className='toast'+(bad?' bad':'');d.textContent=m;$('#toasts').appendChild(d);setTimeout(function(){d.remove()},bad?6000:3200)}
+
+/* ---------------- sign in ---------------- */
+function showLogin(msg){
+  $('#hUser').style.display='none';AUTH=null;pill();$('#hLogo').style.display='none';
+  var needLink=!IN_GAS&&!API_URL_INJECT;
+  $('#main').innerHTML='<div class="card" style="max-width:420px;margin:5vh auto;text-align:left">'+
+   '<img id="liLogo" class="lgbig" alt="School logo" style="display:none"><p id="liSchool" style="text-align:center;font-weight:700;margin:0 0 10px">'+esc((DATA&&DATA.school)||LOGOS.school||'TOM HOEY PRIMARY SCHOOL')+'</p>'+
+   '<h1 class="ttl">'+ic('signin')+'Sign in</h1><p class="sub">Use the UserName and Password given to you by the Head Teacher (the same as in SARRS).</p>'+
+   (msg?'<div class="note bad">'+esc(msg)+'</div>':'')+
+   (needLink?'<label class="f"><span>Web app link (ends with /exec) – needed once</span><input id="liUrl" value="'+esc(apiUrl())+'" placeholder="https://script.google.com/macros/s/…/exec"></label>':'')+
+   '<label class="f"><span>'+ic('user')+' UserName</span><input id="liU" autocomplete="username" autocapitalize="none" value="'+esc(showLogin.u||ls('thpsm_last')||'')+'"></label>'+
+   '<label class="f"><span>'+ic('lock')+' Password</span><input id="liP" type="password" autocomplete="current-password"></label>'+
+   '<button class="btn gold" id="liGo" style="width:100%;margin-top:8px">'+ic('signin')+'Sign in</button>'+
+   '<p class="small muted" style="margin-top:12px">First sign-in needs the internet (school Wi-Fi). After that you can enter marks without signal; they upload by themselves when the laptop is back on Wi-Fi.</p><div class="lgrow" id="liLogos"></div></div>';
+  showLogos();
+  if(!LOGOS.ms&&(IN_GAS||apiUrl()))call('apiPublic').then(function(d){LOGOS.school=d.school;setLogos(d.logos,d.logoMs);LOGOS.school=d.school;try{localStorage.setItem('thpsm_logos',JSON.stringify(LOGOS))}catch(e){}var e=$('#liSchool');if(e&&d.school)e.textContent=d.school}).catch(function(){});
+  var go=function(){doLogin()};
+  $('#liGo').onclick=go;$('#liP').onkeydown=function(e){if(e.key==='Enter')go()};
+  setTimeout(function(){($('#liU').value?$('#liP'):$('#liU')).focus()},50);
+}
+function doLogin(){
+  var u=$('#liU').value.trim(),p=$('#liP').value;showLogin.u=u;
+  if($('#liUrl')){var url=$('#liUrl').value.trim();if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)){showLogin('Paste the web app link from the Head Teacher. It starts with https://script.google.com/');return}ls('thpsm_api',url)}
+  if(!u||!p){showLogin('Type your UserName and Password.');return}
+  var a={user:u,pass:p};
+  $('#liGo').disabled=true;$('#liGo').textContent='Signing in…';
+  call('apiLogin',a).then(function(d){
+    AUTH=a;ls('thpsm_auth',a);ls('thpsm_last',u);ls('thpsm_pw_'+u.toLowerCase(),hash(p));
+    loadLocal();DATA=d;takeLogos();mergeQueue();saveData();ONLINE=true;LAST=Date.now();startApp();
+    if(Q.length)sync();
+  }).catch(function(e){
+    if(isAuthErr(e)){showLogin(errText(e));return}
+    // no network: allow sign-in with the copy kept on this device
+    var saved=ls('thpsm_data_'+u.toLowerCase());
+    if(saved&&ls('thpsm_pw_'+u.toLowerCase())===hash(p)){AUTH=a;ls('thpsm_auth',a);loadLocal();ONLINE=false;startApp();toast('No network – working offline with the copy on this device.')}
+    else showLogin(String(e&&e.message)==='NOLINK'?'Paste the web app link first.':'Cannot reach the school database. Connect to the school Wi-Fi for the first sign-in.');
+  });
+}
+function hash(s){var h=5381;s=String(s)+'|thps';for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return String(h)}
+function signOut(){
+  if(Q.length&&!confirm(Q.length+' mark(s) are not uploaded yet. They stay safe on this device and upload next time you sign in. Sign out?'))return;
+  ls('thpsm_auth',null);AUTH=null;DATA=null;Q=[];showLogin();
+}
+
+/* ---------------- data helpers ---------------- */
+function mkey(sid,subj){return sid+'|'+subj}
+function tkey(cc,subj){return cc+'|'+subj}
+function markRow(sid,subj){var r=DATA.marks[mkey(sid,subj)];if(!r){r={v:new Array(32).fill(null),ms:0};DATA.marks[mkey(sid,subj)]=r}return r}
+function taskRow(cc,subj){var r=DATA.tasks[tkey(cc,subj)];if(!r){r={max:new Array(32).fill(null),type:new Array(32).fill(''),ms:0};DATA.tasks[tkey(cc,subj)]=r}return r}
+function applyChange(c){
+  if(c.kind==='mark')markRow(c.sid,c.subj).v[c.slot-1]=c.value;
+  else{var t=taskRow(c.cc,c.subj);if(c.kind==='max')t.max[c.slot-1]=c.value;else t.type[c.slot-1]=c.value||''}
+}
+function mergeQueue(){Q.forEach(applyChange)}   // unsent typing always shows on top of downloaded data
+function pendingSet(){var s={};Q.forEach(function(c){s[c.kind+'|'+(c.kind==='mark'?c.sid:c.cc)+'|'+c.subj+'|'+c.slot]=1});return s}
+function addChange(c){
+  c.id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);c.ts=Date.now();
+  Q=Q.filter(function(o){return !(o.kind===c.kind&&o.cc===c.cc&&o.subj===c.subj&&o.slot===c.slot&&(o.sid||'')===(c.sid||''))});
+  Q.push(c);applyChange(c);saveQ();saveData();pill();
+  clearTimeout(addChange.t);addChange.t=setTimeout(sync,1500);
+}
+
+/* ---------------- upload / download ---------------- */
+function sync(){
+  if(SYNCING||!AUTH||!DATA)return Promise.resolve();
+  SYNCING=true;pill();
+  var batch=Q.slice(0,250);
+  return call('apiSync',AUTH,batch,DATA.serverMs||0).then(function(r){
+    ONLINE=true;LAST=Date.now();
+    var gone={};r.acked.forEach(function(id){gone[id]=1});
+    r.rejected.forEach(function(x){gone[x.id]=1;toast('Not saved: '+x.why,1)});
+    Q=Q.filter(function(c){return !gone[c.id]});saveQ();
+    Object.keys(r.marks).forEach(function(k){DATA.marks[k]=r.marks[k]});
+    Object.keys(r.tasks).forEach(function(k){DATA.tasks[k]=r.tasks[k]});
+    if(r.year&&r.year!==DATA.year){toast('The school year changed to '+r.year+'. Signing in again…');SYNCING=false;return relogin()}
+    if(r.students){var chg=JSON.stringify(r.students.map(function(x){return x.id+x.sur+x.name+x.cc+x.status}))!==JSON.stringify(DATA.students.map(function(x){return x.id+x.sur+x.name+x.cc+x.status}));DATA.students=r.students;if(chg&&PAGE!=='stu')toast('Class list updated')}
+    DATA.serverMs=r.serverMs;mergeQueue();saveData();
+    if(r.logoMs&&r.logoMs!==LOGOS.ms)call('apiLogos',AUTH).then(function(x){var sc=LOGOS.school;setLogos(x.logos,x.logoMs);LOGOS.school=sc;try{localStorage.setItem('thpsm_logos',JSON.stringify(LOGOS))}catch(e){}if(PAGE==='setup')render()}).catch(function(){});
+    SYNCING=false;pill();refreshGrid();
+    if(Q.length&&batch.length===250)return sync();
+  }).catch(function(e){
+    SYNCING=false;
+    if(isAuthErr(e)){toast(errText(e),1);ls('thpsm_auth',null);showLogin('Your sign-in was refused: '+errText(e));return}
+    ONLINE=false;pill();
+  });
+}
+function relogin(){return call('apiLogin',AUTH).then(function(d){DATA=d;takeLogos();mergeQueue();saveData();startApp()})}
+function takeLogos(){if(DATA&&DATA.logos){setLogos(DATA.logos,DATA.logoMs);LOGOS.school=DATA.school;try{localStorage.setItem('thpsm_logos',JSON.stringify(LOGOS))}catch(e){}delete DATA.logos}}
+setInterval(function(){if(AUTH&&DATA&&!document.hidden)sync()},Q.length?15000:30000);
+setInterval(function(){if(AUTH&&DATA&&Q.length&&!SYNCING)sync()},15000);
+window.addEventListener('online',function(){sync()});
+window.addEventListener('offline',function(){ONLINE=false;pill()});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)sync()});
+$('#pill').onclick=function(){if(AUTH)sync().then(function(){toast(Q.length?(Q.length+' still waiting – no network yet.'):'Everything is uploaded.')})};
+
+/* ---------------- app ---------------- */
+function startApp(){
+  $('#hSchool').textContent=(DATA.school||'THPS')+' · Marks '+DATA.year;
+  $('#hSub').textContent=(DATA.me.name||DATA.me.user)+(DATA.me.admin?' · Administrator':' · Class '+DATA.me.classes.join(', '));
+  var hu=$('#hUser');hu.style.display='';hu.innerHTML=ic('signout')+'Sign out';hu.onclick=signOut;
+  showLogos();pill();render();
+}
+function render(){
+  if(!DATA)return;
+  if(!DATA.me.admin&&(PAGE==='sum'||PAGE==='setup'||PAGE==='cards'))PAGE='marks';
+  var nav='<div class="tabs" id="pages"><button data-p="marks" class="'+(PAGE==='marks'?'on':'')+'">'+ic('marks')+'Marks entry</button>'+
+    (DATA.me.admin?'<button data-p="sum" class="'+(PAGE==='sum'?'on':'')+'">'+ic('chart')+'Class progress</button>':'')+
+    '<button data-p="stu" class="'+(PAGE==='stu'?'on':'')+'">'+ic('user')+'Students</button>'+
+    '<button data-p="help" class="'+(PAGE==='help'?'on':'')+'">'+ic('help')+'Offline &amp; help</button>'+
+    (DATA.me.admin?'<button data-p="cards" class="'+(PAGE==='cards'?'on':'')+'">'+ic('user')+'ID cards &amp; certificates</button>':'')+
+    (DATA.me.admin?'<button data-p="setup" class="'+(PAGE==='setup'?'on':'')+'">'+ic('setup')+'Setup</button>':'')+'</div>';
+  if(PAGE==='sum')return renderSummary(nav);
+  if(PAGE==='setup')return renderSetup(nav);
+  if(PAGE==='cards')return renderCards(nav);
+  if(PAGE==='help')return renderHelp(nav);
+  if(PAGE==='stu')return renderStudents(nav);
+  renderMarks(nav);
+}
+function bindPages(){[].forEach.call(document.querySelectorAll('#pages button'),function(b){b.onclick=function(){PAGE=b.dataset.p;render()}})}
+
+/* ---------------- v11: students online (add / correct; Excel takes them with Download Online) ---------------- */
+var SVIEW={cc:'',edit:null,list:null};
+function renderStudents(nav){
+  var cls=DATA.me.classes.slice();if(!SVIEW.cc||cls.indexOf(SVIEW.cc)<0)SVIEW.cc=(VIEW.cc&&cls.indexOf(VIEW.cc)>=0)?VIEW.cc:cls[0]||'';
+  var h=nav+'<div class="card"><h2 class="ttl">'+ic('user')+'Students '+DATA.year+'</h2><p class="sub">Add a new student or correct a name, sex or class. '+
+    (DATA.me.admin?'Your changes reach the teachers at once and go into Excel with <b>Download Online</b>.':'Your changes reach the Head Teacher at once.')+'</p>'+
+    '<div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="small">Class </label><select id="sCc">'+cls.map(function(c){return '<option'+(c===SVIEW.cc?' selected':'')+'>'+esc(c)+'</option>'}).join('')+'</select>'+
+    '<button class="btn" id="sAdd">'+ic('user')+'Add a student</button><span class="small muted" id="sMsg"></span></div><div id="sForm"></div><div id="sList" style="margin-top:10px">Loading…</div></div>';
+  $('#main').innerHTML=h;bindPages();
+  $('#sCc').onchange=function(){SVIEW.cc=this.value;SVIEW.edit=null;drawStuList()};
+  $('#sAdd').onclick=function(){SVIEW.edit={id:'',sur:'',name:'',sex:'',cc:SVIEW.cc,status:'Active',dob:''};drawStuForm()};
+  call('apiStudents',AUTH).then(function(d){ONLINE=true;pill();SVIEW.list=d.students;drawStuList()}).catch(function(e){ONLINE=false;pill();SVIEW.list=null;drawStuList(errText(e))});
+}
+function drawStuList(err){
+  var el=$('#sList');if(!el)return;
+  var list=(SVIEW.list||DATA.students).filter(function(s){return s.cc===SVIEW.cc}).sort(function(a,b){return (a.sur+a.name).localeCompare(b.sur+b.name)});
+  el.innerHTML=(err?'<div class="note bad">Offline – showing the saved list. Adding or changing students needs the internet.</div>':'')+
+    '<div style="overflow:auto"><table class="list"><thead><tr><th>#</th><th>ID</th><th>Surname</th><th>Name</th><th>Sex</th><th>Status</th><th></th></tr></thead><tbody>'+
+    list.map(function(s,i){return '<tr><td>'+(i+1)+'</td><td class="small">'+esc(s.id)+(s.pending?' <span class="small" style="color:#b8860b" title="Not yet in Excel">● new</span>':'')+'</td><td><b>'+esc(s.sur)+'</b></td><td>'+esc(s.name)+'</td><td>'+esc(s.sex)+'</td><td>'+esc(s.status||'Active')+'</td>'+
+      '<td><button class="btn sm" data-e="'+esc(s.id)+'">Edit</button></td></tr>'}).join('')+
+    (list.length?'':'<tr><td colspan="7" style="padding:14px">No students in '+esc(SVIEW.cc)+' yet.</td></tr>')+'</tbody></table></div>'+
+    '<p class="small muted">'+list.length+' students · ● new = added or changed online, waiting for Excel.</p>';
+  [].forEach.call(el.querySelectorAll('button[data-e]'),function(b){b.onclick=function(){var s=list.filter(function(x){return x.id===b.dataset.e})[0];SVIEW.edit=JSON.parse(JSON.stringify(s));drawStuForm()}});
+}
+function drawStuForm(){
+  var s=SVIEW.edit,el=$('#sForm');if(!s){el.innerHTML='';return}
+  var opts=function(arr,v){return arr.map(function(x){return '<option'+(x===v?' selected':'')+'>'+x+'</option>'}).join('')};
+  el.innerHTML='<div class="card" style="margin-top:10px;background:#f6f7f9"><b>'+(s.id?'Change '+esc(s.id):'New student')+'</b>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px">'+
+    '<label class="small">Surname<input id="fSur" value="'+esc(s.sur)+'" style="text-transform:uppercase"></label>'+
+    '<label class="small">Name<input id="fName" value="'+esc(s.name)+'"></label>'+
+    '<label class="small">Sex<select id="fSex"><option value=""></option>'+opts(['M','F'],s.sex)+'</select></label>'+
+    '<label class="small">Class<select id="fCc">'+opts(DATA.me.classes,s.cc)+'</select></label>'+
+    '<label class="small">Status<select id="fSt">'+opts(['Active','Left','Withdrawn'],s.status||'Active')+'</select></label>'+
+    '<label class="small">Date of birth<input id="fDob" placeholder="dd/mm/yyyy" value="'+esc(s.dob||'')+'"></label></div>'+
+    '<div style="margin-top:10px;display:flex;gap:8px"><button class="btn" id="fSave">'+ic('upload')+'Save</button><button class="btn ghost" id="fCancel">Cancel</button></div></div>';
+  $('#fCancel').onclick=function(){SVIEW.edit=null;drawStuForm()};
+  $('#fSave').onclick=function(){
+    var st={id:s.id,sur:$('#fSur').value.trim(),name:$('#fName').value.trim(),sex:$('#fSex').value,cc:$('#fCc').value,status:$('#fSt').value,dob:$('#fDob').value.trim()};
+    this.disabled=true;$('#sMsg').textContent='Saving…';
+    call('apiSaveStudent',AUTH,st).then(function(d){ONLINE=true;pill();SVIEW.list=d.students;SVIEW.edit=null;SVIEW.cc=st.cc;
+      DATA.students=d.students.filter(function(x){return !/left|withdraw|expel/i.test(x.status)});saveData();
+      toast('Saved '+d.id);renderStudents(navHtml())}).catch(function(e){$('#fSave').disabled=false;$('#sMsg').textContent='';toast(isAuthErr(e)?errText(e):'Not saved: '+errText(e),1)});
+  };
+}
+function students(cc){return DATA.students.filter(function(s){return s.cc===cc}).sort(function(a,b){return (a.sur+a.name).localeCompare(b.sur+b.name)})}
+function gradeOf(cc){if(/^prep/i.test(cc))return 'Prep';var m=String(cc).match(/^(\d)/);return m?'Grade '+m[1]:''}
+function renderMarks(nav){
+  var cls=DATA.me.classes;
+  if(!cls.length){$('#main').innerHTML=nav+'<div class="card"><div class="note">No class is linked to your UserName yet. Ask the Head Teacher to put your class on the Teachers list.</div></div>';bindPages();return}
+  var cc=cls.indexOf(VIEW.cc)>=0?VIEW.cc:cls[0];
+  var grade=gradeOf(cc),subs=(DATA.subjects[grade]||[]),subj=Number(VIEW.subj)||1;
+  if(subj>8)subj=1;
+  var term=Number(VIEW.term)||1;
+  VIEW={cc:cc,subj:subj,term:term};ls('thpsm_view',VIEW);
+  var h=nav+'<div class="card"><div class="row">'+
+    '<label class="f"><span>'+ic('people')+' Class</span><select id="sCc">'+cls.map(function(c){return '<option'+(c===cc?' selected':'')+'>'+esc(c)+'</option>'}).join('')+'</select></label>'+
+    '<label class="f"><span>'+ic('book')+' Subject</span><select id="sSu">'+[1,2,3,4,5,6,7,8].map(function(n){return '<option value="'+n+'"'+(n===subj?' selected':'')+'>'+n+'. '+esc(subs[n-1]||('Subject '+n))+'</option>'}).join('')+'</select></label></div>'+
+    '<div class="tabs" id="tTabs">'+[1,2,3,4].map(function(t){var skill=(grade==='Grade 1'&&t<=2);return '<button data-t="'+t+'" class="'+(t===term?'on':'')+'"'+(skill?' title="Skills Report term"':'')+'>Term '+t+(t<=2?' (AP1)':' (AP2)')+'</button>'}).join('')+'</div>';
+  if(grade==='Prep'||(grade==='Grade 1'&&term<=2)){
+    h+='<div class="note">'+(grade==='Prep'?'Prep':'Grade 1 Terms 1 & 2 (AP1)')+' is assessed with the <b>Skills Report</b>, not marks. Use the Skills Report in SARRS (Excel).</div></div>';
+    $('#main').innerHTML=h;bindMarks();return;
+  }
+  h+='<div class="gridwrap"><table class="g" id="grid">'+gridHead(cc,subj,term)+'<tbody>'+gridBody(cc,subj,term)+'</tbody></table></div>'+
+     '<div class="stat" id="gstat"></div>'+
+     '<p class="small muted">Type the mark and press Enter to go down. Set the <b>Max</b> and <b>Type</b> for each task in the grey rows first. A red cell is above the Max.</p></div>';
+  $('#main').innerHTML=h;bindMarks();bindGrid(cc,subj,term);gstat(cc,subj,term);
+}
+function slotsOf(term){var s=(term-1)*8;return [0,1,2,3,4,5,6,7].map(function(i){return s+i+1})}
+function slotLabel(n){var s=SLOTS[n-1];return (s.charAt(2)==='W'?'W':'Task ')+s.slice(3)}
+function gridHead(cc,subj,term){
+  var t=taskRow(cc,subj),sl=slotsOf(term),pend=pendingSet();
+  var r1='<tr><th class="nm" rowspan="4">Student</th><th rowspan="4">No</th><th class="grp" colspan="4">Weekly assessments</th><th class="grp t" colspan="4">Tasks / tests</th><th rowspan="4">Weekly<br>total</th><th rowspan="4">Task<br>total</th></tr>';
+  var r2='<tr>'+sl.map(function(n){return '<th>'+slotLabel(n)+'</th>'}).join('')+'</tr>';
+  var r3='<tr>'+sl.map(function(n){var v=t.type[n-1]||'';return '<th><select data-k="type" data-s="'+n+'" title="Task type">'+TYPES.map(function(o){return '<option'+(o===v?' selected':'')+' value="'+esc(o)+'">'+(o||'Type')+'</option>'}).join('')+(TYPES.indexOf(v)<0?'<option selected>'+esc(v)+'</option>':'')+'</select></th>'}).join('')+'</tr>';
+  var r4='<tr>'+sl.map(function(n){var v=t.max[n-1];return '<th><input data-k="max" data-s="'+n+'" inputmode="decimal" placeholder="Max" value="'+(v==null?'':esc(v))+'" class="'+(pend['max|'+cc+'|'+subj+'|'+n]?'pend':'')+'" title="Highest mark for this task"></th>'}).join('')+'</tr>';
+  return '<thead>'+r1+r2+r3+r4+'</thead>';
+}
+function gridBody(cc,subj,term){
+  var t=taskRow(cc,subj),sl=slotsOf(term),list=students(cc),pend=pendingSet();
+  if(!list.length)return '<tr><td colspan="12" style="padding:16px">No students in '+esc(cc)+' for '+DATA.year+'. The Head Teacher uploads the class lists from Excel.</td></tr>';
+  return list.map(function(s,i){
+    var m=(DATA.marks[mkey(s.id,subj)]||{v:[]}).v;
+    var cells=sl.map(function(n){var v=m[n-1],mx=t.max[n-1];var cl=[];if(v!=null&&mx!=null&&mx!==''&&Number(v)>Number(mx))cl.push('over');if(pend['mark|'+s.id+'|'+subj+'|'+n])cl.push('pend');
+      return '<td><input data-k="mark" data-s="'+n+'" data-id="'+esc(s.id)+'" data-r="'+i+'" inputmode="decimal" value="'+(v==null?'':esc(v))+'" class="'+cl.join(' ')+'"></td>'}).join('');
+    return '<tr data-id="'+esc(s.id)+'"><td class="nm" title="'+esc(s.id)+'">'+esc(s.sur)+' '+esc(s.name)+'</td><td class="no">'+(i+1)+'</td>'+cells+'<td class="tot" data-tw="'+esc(s.id)+'"></td><td class="tot" data-tt="'+esc(s.id)+'"></td></tr>';
+  }).join('');
+}
+function bindMarks(){
+  bindPages();
+  var c=$('#sCc'),s=$('#sSu');
+  if(c)c.onchange=function(){VIEW.cc=c.value;render()};
+  if(s)s.onchange=function(){VIEW.subj=Number(s.value);render()};
+  [].forEach.call(document.querySelectorAll('#tTabs button'),function(b){b.onclick=function(){VIEW.term=Number(b.dataset.t);render()}});
+}
+function navHtml(){var d=document.createElement('div');d.appendChild($('#pages').cloneNode(true));return d.innerHTML}
+function num(v){v=String(v).trim().replace(',','.');if(v==='')return null;if(!/^\d+(\.\d+)?$/.test(v))return NaN;return Number(v)}
+function bindGrid(cc,subj,term){
+  var g=$('#grid');
+  g.addEventListener('change',function(e){
+    var el=e.target,k=el.dataset.k,n=Number(el.dataset.s);if(!k)return;
+    var t=taskRow(cc,subj);
+    if(k==='type'){addChange({kind:'type',cc:cc,subj:subj,slot:n,value:el.value});return}
+    var v=num(el.value);
+    if(isNaN(v)){toast('Type a number (or leave it empty).',1);el.value=el.dataset.old||'';return}
+    if(k==='max'){
+      if(v!==null&&v<=0){toast('Max must be above 0.',1);el.value=el.dataset.old||'';return}
+      addChange({kind:'max',cc:cc,subj:subj,slot:n,value:v});el.classList.add('pend');markOver(cc,subj,term);gstat(cc,subj,term);return}
+    var mx=t.max[n-1];
+    if(v!==null&&(mx==null||mx==='')){toast('Set the Max for '+slotLabel(n)+' first (grey row at the top).',1);el.value=el.dataset.old||'';return}
+    if(v!==null&&v>Number(mx)){toast('The Max for '+slotLabel(n)+' is '+mx+'. This mark is too high.',1);el.value=el.dataset.old||'';return}
+    addChange({kind:'mark',cc:cc,subj:subj,slot:n,sid:el.dataset.id,value:v});
+    el.classList.add('pend');el.classList.remove('over');rowTotals(cc,subj,term,el.dataset.id);gstat(cc,subj,term);
+  });
+  g.addEventListener('focusin',function(e){if(e.target.tagName==='INPUT')e.target.dataset.old=e.target.value});
+  g.addEventListener('keydown',function(e){
+    var el=e.target;if(el.tagName!=='INPUT'||el.dataset.k!=='mark')return;
+    var r=Number(el.dataset.r),n=el.dataset.s,next=null;
+    if(e.key==='Enter'||e.key==='ArrowDown')next=g.querySelector('input[data-k="mark"][data-s="'+n+'"][data-r="'+(r+1)+'"]');
+    else if(e.key==='ArrowUp')next=g.querySelector('input[data-k="mark"][data-s="'+n+'"][data-r="'+(r-1)+'"]');
+    if(next){e.preventDefault();el.blur();next.focus();next.select()}
+    else if(e.key==='Enter'){e.preventDefault();el.blur()}
+  });
+  students(cc).forEach(function(s){rowTotals(cc,subj,term,s.id)});
+}
+function rowTotals(cc,subj,term,sid){
+  var m=(DATA.marks[mkey(sid,subj)]||{v:[]}).v,sl=slotsOf(term),w=0,t=0,hw=false,ht=false;
+  sl.forEach(function(n,i){var v=m[n-1];if(v==null||v==='')return;if(i<4){w+=Number(v);hw=true}else{t+=Number(v);ht=true}});
+  var a=document.querySelector('[data-tw="'+cssq(sid)+'"]'),b=document.querySelector('[data-tt="'+cssq(sid)+'"]');
+  if(a)a.textContent=hw?round(w):'';if(b)b.textContent=ht?round(t):'';
+}
+function cssq(s){return String(s).replace(/["\\]/g,'\\$&')}
+function round(x){return Math.round(x*100)/100}
+function markOver(cc,subj,term){
+  var t=taskRow(cc,subj);
+  [].forEach.call(document.querySelectorAll('#grid input[data-k="mark"]'),function(el){var n=Number(el.dataset.s),v=num(el.value),mx=t.max[n-1];el.classList.toggle('over',v!=null&&mx!=null&&mx!==''&&v>Number(mx))});
+}
+function gstat(cc,subj,term){
+  var el=$('#gstat');if(!el)return;
+  var list=students(cc),sl=slotsOf(term),t=taskRow(cc,subj),filled=0,need=0;
+  sl.forEach(function(n){if(t.max[n-1]!=null&&t.max[n-1]!=='')need+=list.length});
+  list.forEach(function(s){var m=(DATA.marks[mkey(s.id,subj)]||{v:[]}).v;sl.forEach(function(n){if(m[n-1]!=null&&m[n-1]!==''&&t.max[n-1]!=null&&t.max[n-1]!=='')filled++})});
+  el.innerHTML='<span><b>'+list.length+'</b> students</span><span><b>'+filled+'</b> of '+need+' marks entered this term</span><span>Last upload: <b>'+(LAST?new Date(LAST).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'not yet')+'</b></span>';
+}
+/* refresh values after a download without losing the cell being typed in */
+function refreshGrid(){
+  if(PAGE!=='marks'||!$('#grid'))return;
+  var cc=VIEW.cc,subj=VIEW.subj,term=VIEW.term,t=taskRow(cc,subj),pend=pendingSet(),act=document.activeElement;
+  [].forEach.call(document.querySelectorAll('#grid input'),function(el){
+    if(el===act)return;var n=Number(el.dataset.s),v;
+    if(el.dataset.k==='max'){v=t.max[n-1];el.classList.toggle('pend',!!pend['max|'+cc+'|'+subj+'|'+n])}
+    else{v=(DATA.marks[mkey(el.dataset.id,subj)]||{v:[]}).v[n-1];el.classList.toggle('pend',!!pend['mark|'+el.dataset.id+'|'+subj+'|'+n])}
+    el.value=v==null?'':v;
+  });
+  [].forEach.call(document.querySelectorAll('#grid select'),function(el){if(el!==act){var v=t.type[Number(el.dataset.s)-1]||'';if(TYPES.indexOf(v)>=0)el.value=v}});
+  markOver(cc,subj,term);students(cc).forEach(function(s){rowTotals(cc,subj,term,s.id)});gstat(cc,subj,term);
+}
+
+/* ---------------- Administrator: class progress ---------------- */
+function renderSummary(nav){
+  $('#main').innerHTML=nav+'<div class="card"><h2 class="ttl">'+ic('chart')+'Class progress '+DATA.year+'</h2><p class="sub">Marks entered by each class (all subjects, all terms). Updates when you open this page.</p><div id="sumT">Loading…</div></div>';
+  bindPages();
+  call('apiSummary',AUTH).then(function(rows){
+    ONLINE=true;pill();
+    $('#sumT').innerHTML='<div style="overflow:auto"><table class="list"><thead><tr><th>Class</th><th>Teacher</th><th>Students</th><th>Marks entered</th><th></th><th>Last entry</th></tr></thead><tbody>'+
+      rows.map(function(r){var full=r.students*8*24,pc=full?Math.min(100,Math.round(r.filled/full*100)):0;
+        return '<tr><td><b>'+esc(r.cc)+'</b></td><td>'+esc(r.teacher)+'</td><td>'+r.students+'</td><td>'+r.filled+'</td><td><div class="bar"><i style="width:'+pc+'%"></i></div></td><td class="small">'+(r.last?new Date(r.last).toLocaleString()+' · '+esc(r.by):'—')+'</td></tr>'}).join('')+
+      '</tbody></table></div><p class="small muted">The bar compares with 24 marks per subject per student (Terms 2–4 full).</p>';
+  }).catch(function(e){ONLINE=false;pill();$('#sumT').innerHTML='<div class="note bad">Needs the internet: '+esc(errText(e))+'</div>'});
+}
+
+/* ---------------- Administrator: setup (logos) ---------------- */
+var LOGO_INFO={SCHOOL:['School logo','Every page, ID cards, certificates'],PROVINCE:['Province logo','ID cards, certificates, sign-in box'],CHURCH:['Church logo','Attainment certificates'],NATIONAL:['National education logo','Inspection forms (later)']};
+function renderSetup(nav){
+  $('#main').innerHTML=nav+'<div class="card"><h2 class="ttl">'+ic('image')+'Logos</h2><p class="sub">Change a logo here and every teacher\'s screen shows the new one the next time it connects. Pictures are made small automatically (PNG or JPG, any size).</p><div class="lgcards">'+
+    Object.keys(LOGO_INFO).map(function(k){var src=logo(k);return '<div class="lgcard"><b>'+LOGO_INFO[k][0]+'</b><div class="small muted">'+LOGO_INFO[k][1]+'</div><div class="pv">'+(src?'<img src="'+src+'" alt="">':'<span>No logo yet</span>')+'</div>'+
+      '<div class="row"><label class="btn gold" style="cursor:pointer">'+ic('upload')+(src?'Change':'Add')+'<input type="file" accept="image/*" data-lg="'+k+'" style="display:none"></label>'+(src?'<button class="btn lite" data-rm="'+k+'">'+ic('trash')+'Remove</button>':'')+'</div></div>'}).join('')+
+    '</div><p class="small muted" style="margin-top:12px">Needs the internet. The Excel workbook keeps its own logos: change those with the School Logo / Province Logo buttons on the SARRS SETUP and SFMS Setup pages.</p></div>'+
+    '<div class="card"><h2 class="ttl">'+ic('setup')+'School details (ID cards, certificates, report cards)</h2><div id="setF">Loading…</div></div>'+
+    '<div class="card"><h2 class="ttl">'+ic('link')+'Teachers\' link</h2><p class="small">Send teachers this link with their SARRS UserName and Password:</p><input readonly value="'+esc(DATA.appUrl||apiUrl())+'" onclick="this.select()"></div>';
+  bindPages();
+  call('apiSettings',AUTH).then(function(v){
+    var F=[['School','School name'],['District','Place line'],['Address','Address (back of ID cards)'],['Phone','Phone'],['Email','Email'],['HeadTeacher','Head Teacher (name on cards and certificates)'],['BoardChair','Chairman, Board of Management (Grade 6 certificate)'],['CardValidUntil','ID cards valid until (dd/mm/yyyy)']];
+    $('#setF').innerHTML='<div class="row">'+F.map(function(f){return '<label class="f" style="min-width:240px"><span>'+f[1]+'</span><input data-set="'+f[0]+'" value="'+esc(v[f[0]])+'"></label>'}).join('')+'</div>'+
+      '<div class="row"><label class="f"><span>Show AP1 report online (QR on student cards)</span><select data-set="ShowAP1"><option'+(/^y/i.test(v.ShowAP1)?' selected':'')+'>Yes</option><option'+(/^y/i.test(v.ShowAP1)?'':' selected')+'>No</option></select></label>'+
+      '<label class="f"><span>Show AP2 report online</span><select data-set="ShowAP2"><option'+(/^y/i.test(v.ShowAP2)?' selected':'')+'>Yes</option><option'+(/^y/i.test(v.ShowAP2)?'':' selected')+'>No</option></select></label></div>'+
+      '<button class="btn gold" id="setSave">'+ic('upload')+'Save details</button>';
+    $('#setSave').onclick=function(){var o={};[].forEach.call(document.querySelectorAll('[data-set]'),function(e){o[e.dataset.set]=e.value});
+      call('apiSaveSettings',AUTH,o).then(function(){CARDS=null;toast('Details saved.')}).catch(function(e){toast(isAuthErr(e)?errText(e):'No network – connect to save.',1)})};
+  }).catch(function(e){$('#setF').innerHTML='<div class="note bad">Needs the internet.</div>'});
+  [].forEach.call(document.querySelectorAll('input[data-lg]'),function(inp){inp.onchange=function(){if(inp.files[0])pickLogo(inp.dataset.lg,inp.files[0])}});
+  [].forEach.call(document.querySelectorAll('button[data-rm]'),function(b){b.onclick=function(){if(confirm('Remove the '+LOGO_INFO[b.dataset.rm][0].toLowerCase()+'?'))saveLogo(b.dataset.rm,'')}});
+}
+function pickLogo(k,file){
+  if(!/^image\//.test(file.type)){toast('Choose a picture file (PNG or JPG).',1);return}
+  var fr=new FileReader();
+  fr.onload=function(){var img=new Image();img.onload=function(){
+    var m=256,w=img.width,h=img.height,sc=Math.min(1,m/Math.max(w,h)),c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(w*sc));c.height=Math.max(1,Math.round(h*sc));c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    var d=c.toDataURL('image/webp',0.86);if(d.indexOf('data:image/webp')!==0)d=c.toDataURL('image/png');
+    saveLogo(k,d)};img.onerror=function(){toast('That picture could not be opened.',1)};img.src=fr.result};
+  fr.readAsDataURL(file);
+}
+function saveLogo(k,d){
+  toast('Saving the logo…');
+  call('apiSetLogo',AUTH,k,d).then(function(x){var sc=LOGOS.school;setLogos(x.logos,x.logoMs);LOGOS.school=sc;try{localStorage.setItem('thpsm_logos',JSON.stringify(LOGOS))}catch(e){}ONLINE=true;pill();toast(d?'Logo saved. Teachers see it next time they connect.':'Logo removed.');render()})
+  .catch(function(e){if(isAuthErr(e))toast(errText(e),1);else{ONLINE=false;pill();toast('No network – connect to the internet to change logos.',1)}});
+}
+
+/* ---------------- help ---------------- */
+function renderHelp(nav){
+  var link=DATA.appUrl||apiUrl();
+  $('#main').innerHTML=nav+'<div class="card"><h2 class="ttl">'+ic('help')+'Working without network</h2>'+
+   (IN_GAS?'<div class="note">You are using the <b>online link</b>. If the network drops, keep this tab <b>open</b>: marks you type are kept on this device and upload by themselves when the Wi-Fi comes back. If you close the tab without network, you can only open it again once you are online.</div>'+
+     (link?'<p>For classrooms with no signal, use the <b>offline copy</b> instead. It opens even with no network at all:</p><p><a class="btn gold" href="'+esc(link)+'?file=offline" target="_blank" rel="noopener">'+ic('download')+'Download the offline copy</a></p><ol class="small"><li>Download it while on the school Wi-Fi. A file <b>THPS_Marks_Offline.html</b> is saved (usually in Downloads).</li><li>Open that file in Chrome or Edge and sign in once while on Wi-Fi.</li><li>After that, open the same file in class any time, with or without network.</li></ol>':'')
+   :'<div class="note good">You are using the <b>offline copy</b>. It opens with no network. Marks are kept on this laptop and upload by themselves when it is back on the school Wi-Fi.</div>')+
+   '<h2 style="margin-top:16px">Good to know</h2><ul class="small">'+
+   '<li>The coloured button at the top shows the state. <b>Yellow</b> = marks waiting to upload, <b>green</b> = everything uploaded. Click it to upload now.</li>'+
+   '<li>Do not clear the browser history or data while marks are waiting – that would delete them from this device.</li>'+
+   '<li>Use the same browser on the same laptop each time.</li>'+
+   '<li>If two teachers type the same mark, the one typed last is kept.</li>'+
+   '<li>Marks waiting now: <b>'+Q.length+'</b>.</li></ul>'+
+   (Q.length?'<button class="btn" id="hSync">'+ic('upload')+'Upload now</button>':'')+'</div>';
+  bindPages();var b=$('#hSync');if(b)b.onclick=function(){sync().then(render)};
+}
+
+/* ---------------- QR code generator (qrcode-generator by Kazuhiko Arase, MIT licence) ---------------- */
+// Copyright (c) 2009 Kazuhiko Arase
+// Licensed under the MIT license:
+var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
+/* ================= ID CARDS & CERTIFICATES (Administrator) ================= */
+var CARDS=null, PHOTOS={}, CVIEW={tab:'tid',cc:'',mode:'cr80',sel:{}};
+var NAVY='#12263f',GOLD='#e9b949',TEAL='#4fa3b8';
+function qrSvg(text,px){
+  var q=qrcode(0,'M');q.addData(text);q.make();var n=q.getModuleCount(),d='';
+  for(var r=0;r<n;r++)for(var c=0;c<n;c++)if(q.isDark(r,c))d+='M'+c+' '+r+'h1v1h-1z';
+  return '<svg viewBox="-2 -2 '+(n+4)+' '+(n+4)+'" style="width:'+px+';height:'+px+';display:block" shape-rendering="crispEdges"><rect x="-2" y="-2" width="'+(n+4)+'" height="'+(n+4)+'" fill="#fff"/><path d="'+d+'" fill="#000"/></svg>';
+}
+var C128=['11011001100','11001101100','11001100110','10010011000','10010001100','10001001100','10011001000','10011000100','10001100100','11001001000','11001000100','11000100100','10110011100','10011011100','10011001110','10111001100','10011101100','10011100110','11001110010','11001011100','11001001110','11011100100','11001110100','11101101110','11101001100','11100101100','11100100110','11101100100','11100110100','11100110010','11011011000','11011000110','11000110110','10100011000','10001011000','10001000110','10110001000','10001101000','10001100010','11010001000','11000101000','11000100010','10110111000','10110001110','10001101110','10111011000','10111000110','10001110110','11101110110','11010001110','11000101110','11011101000','11011100010','11011101110','11101011000','11101000110','11100010110','11101101000','11101100010','11100011010','11101111010','11001000010','11110001010','10100110000','10100001100','10010110000','10010000110','10000101100','10000100110','10110010000','10110000100','10011010000','10011000010','10000110100','10000110010','11000010010','11001010000','11110111010','11000010100','10001111010','10100111100','10010111100','10010011110','10111100100','10011110100','10011110010','11110100100','11110010100','11110010010','11011011110','11011110110','11110110110','10101111000','10100011110','10001011110','10111101000','10111100010','11110101000','11110100010','10111011110','10111101110','11101011110','11110101110','11010000100','11010010000','11010011100','1100011101011'];
+/* Code 128 (set B) barcode as SVG */
+function barcodeSvg(text,w,h){
+  var vals=[104],sum=104,s='';
+  for(var i=0;i<text.length;i++){var v=text.charCodeAt(i)-32;if(v<0||v>94)v=0;vals.push(v);sum+=v*(i+1)}
+  vals.push(sum%103);vals.push(106);
+  vals.forEach(function(v){s+=C128[v]});
+  var n=s.length+20,d='',x=10;
+  for(var j=0;j<s.length;j++){if(s[j]==='1'){var k=j;while(k<s.length&&s[k]==='1')k++;d+='M'+(10+j)+' 0h'+(k-j)+'v40h-'+(k-j)+'z';j=k-1}}
+  return '<svg viewBox="0 0 '+n+' 40" preserveAspectRatio="none" style="width:'+w+';height:'+h+';display:block" shape-rendering="crispEdges"><rect width="'+n+'" height="40" fill="#fff"/><path d="'+d+'" fill="#000"/></svg>';
+}
+var SILHOUETTE='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 40"><rect width="30" height="40" fill="#dfe5ec"/><circle cx="15" cy="15" r="7" fill="#9aa8b8"/><path d="M2 40c1-9 6-14 13-14s12 5 13 14z" fill="#9aa8b8"/></svg>');
+function ph(key){return PHOTOS[key]||''}
+function verifyUrl(id,k){return (CARDS.appUrl||apiUrl())+'?id='+encodeURIComponent(id)+'&k='+k}
+function todayTxt(){var d=new Date();return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()}
+function upper(s){return String(s||'').toUpperCase()}
+
+/* ---------- card faces (85.6 x 54 mm) ---------- */
+function cardFront(p){
+  var st=CARDS.settings,staff=p.kind==='T';
+  var rows=staff?[['ID NO',p.id],['CLASS',p.cls&&p.cls!=='All'?p.cls:'—'],['ISSUED',todayTxt()],['VALID UNTIL',st.CardValidUntil]]
+                 :[['ID NO',p.id],['CLASS',p.cc],['SEX',p.sex==='F'?'FEMALE':p.sex==='M'?'MALE':p.sex],['DATE OF BIRTH',p.dob||'—'],['YEAR',CARDS.year],['VALID UNTIL',st.CardValidUntil]];
+  return '<div class="idc front '+(staff?'staff':'stud')+'">'+
+   '<div class="ib"><div class="il">'+(logo('SCHOOL')?'<img src="'+logo('SCHOOL')+'">':'')+'</div>'+
+     '<div class="it"><b>'+esc(st.School||'TOM HOEY PRIMARY SCHOOL')+'</b><span>'+esc(st.District||'')+'</span></div>'+
+     '<div class="ip">'+(logo('PROVINCE')?'<img src="'+logo('PROVINCE')+'">':'')+'</div></div>'+
+   '<div class="badge">'+(staff?'STAFF':'STUDENT')+'</div>'+
+   '<div class="ph"><img src="'+(ph(p.pkey)||SILHOUETTE)+'"></div>'+
+   '<div class="nm"><b>'+esc(upper(p.title))+'</b><span>'+esc(upper(p.sub))+'</span></div>'+
+   '<div class="fl">'+rows.map(function(r){return '<div><i>'+r[0]+'</i><b>'+esc(r[1])+'</b></div>'}).join('')+'</div>'+
+   '<div class="qr">'+qrSvg(verifyUrl(p.id,p.k),'15.5mm')+'<i>'+(staff?'SCAN TO VERIFY':'SCAN FOR REPORT CARD')+'</i></div>'+
+   '<div class="stripe"></div></div>';
+}
+function cardBack(p){
+  var st=CARDS.settings,staff=p.kind==='T';
+  return '<div class="idc back">'+
+   '<div class="bb">'+(logo('SCHOOL')?'<img src="'+logo('SCHOOL')+'">':'')+'<div><b>'+esc(st.School||'')+'</b><span>'+(staff?'STAFF IDENTIFICATION CARD':'STUDENT IDENTIFICATION CARD')+'</span></div>'+(logo('PROVINCE')?'<img src="'+logo('PROVINCE')+'">':'')+'</div>'+
+   '<div class="bt">'+(staff?'This card is the property of '+esc(st.School||'the school')+'. The holder is a member of staff and must carry it while on duty. Return it to the school when leaving the school or when the card expires.'
+        :'This card is the property of '+esc(st.School||'the school')+'. Parents and guardians: scan the QR code on the front with a phone to see this student\'s AP1 and AP2 report card online.')+'</div>'+
+   '<div class="bt sm"><b>If found, please return to:</b> '+esc(st.School||'')+', '+esc(st.Address||st.District||'')+(st.Phone?' · Ph '+esc(st.Phone):'')+(st.Email?' · '+esc(st.Email):'')+'</div>'+
+   '<div class="sg"><div><span></span><i>Holder</i></div><div><span></span><i>'+esc(st.HeadTeacher||'Head Teacher')+', Head Teacher</i></div></div>'+
+   '<div class="bc">'+barcodeSvg(p.id,'58mm','6.5mm')+'<i>'+esc(p.id)+'</i></div></div>';
+}
+var CARD_CSS='.idc{width:85.6mm;height:54mm;position:relative;overflow:hidden;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;border-radius:3mm;background:#fff}'+
+ '.idc.front{background:linear-gradient(135deg,#12263f 0%,#173556 60%,#0f2036 100%);color:#fff}'+
+ '.idc.front:before{content:"";position:absolute;right:-14mm;top:-16mm;width:46mm;height:46mm;border-radius:50%;border:4mm solid rgba(233,185,73,.12)}'+
+ '.idc.stud.front{background:linear-gradient(135deg,#0f3b4a 0%,#145266 60%,#0d3240 100%)}'+
+ '.ib{position:absolute;left:0;right:0;top:0;height:12mm;display:flex;align-items:center;gap:1.6mm;padding:0 2.4mm;background:rgba(255,255,255,.06);border-bottom:.5mm solid #e9b949}'+
+ '.il img,.ip img{height:9.6mm;width:auto;max-width:12mm;object-fit:contain;background:#fff;border-radius:1.6mm;padding:.4mm;display:block}'+
+ '.it{flex:1;line-height:1.05}.it b{display:block;font-size:3.7mm;letter-spacing:.15mm}.it span{font-size:2.15mm;color:#cfd8e3}'+
+ '.badge{position:absolute;right:2.4mm;top:13.4mm;background:#e9b949;color:#12263f;font-weight:800;font-size:2.35mm;padding:.5mm 2.2mm;border-radius:1mm;letter-spacing:.2mm}'+
+ '.ph{position:absolute;left:2.6mm;top:14.2mm;width:18.5mm;height:23.5mm;border:.6mm solid #e9b949;border-radius:1.6mm;overflow:hidden;background:#dfe5ec}.ph img{width:100%;height:100%;object-fit:cover;display:block}'+
+ '.nm{position:absolute;left:23.6mm;top:14mm;right:16mm;line-height:1.1}.nm b{display:block;font-size:4.2mm;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nm span{display:block;font-size:2.6mm;color:#e9b949;font-weight:700;margin-top:.4mm;letter-spacing:.15mm}'+
+ '.fl{position:absolute;left:23.6mm;top:23.6mm;width:42mm;display:grid;grid-template-columns:1fr 1fr;gap:.8mm 1.6mm}.fl div{line-height:1.05}.fl i{display:block;font-style:normal;font-size:1.9mm;color:#9fb3c8;letter-spacing:.1mm}.fl b{font-size:2.6mm;white-space:nowrap;display:block;overflow:hidden;text-overflow:ellipsis}'+
+ '.qr{position:absolute;right:2.4mm;bottom:3mm;width:17.5mm;background:#fff;border-radius:1.2mm;padding:1mm;text-align:center}.qr svg{margin:0 auto}.qr i{display:block;font-style:normal;color:#12263f;font-size:1.45mm;font-weight:800;margin-top:.3mm;white-space:nowrap}'+
+ '.stripe{position:absolute;left:0;right:0;bottom:0;height:1.3mm;background:linear-gradient(90deg,#e9b949,#f6d77d,#e9b949)}'+
+ '.idc.back{background:#fbfaf6;color:#1d1d1f;border:.2mm solid #d8d3c4}'+
+ '.bb{display:flex;align-items:center;gap:1.6mm;background:#12263f;color:#fff;padding:1.3mm 2.4mm;border-bottom:.6mm solid #e9b949}.bb img{height:7.5mm;width:auto;max-width:10mm;object-fit:contain;background:#fff;border-radius:1.2mm;padding:.3mm}.bb div{flex:1;line-height:1.1}.bb b{display:block;font-size:3.1mm}.bb span{font-size:2.05mm;color:#e9b949;font-weight:700;letter-spacing:.2mm}'+
+ '.bt{font-size:2.1mm;line-height:1.22;padding:1mm 2.6mm 0}.bt.sm{font-size:1.9mm;color:#333}'+
+ '.sg{display:flex;gap:4mm;padding:.6mm 2.6mm 0}.sg div{flex:1}.sg span{display:block;border-bottom:.2mm solid #333;height:2.6mm}.sg i{font-style:normal;font-size:1.8mm;color:#444}'+
+ '.bc{position:absolute;left:0;right:0;bottom:1mm;text-align:center}.bc svg{margin:0 auto}.bc i{font-style:normal;font-size:2.05mm;letter-spacing:.5mm;font-family:Consolas,monospace}';
+
+/* ---------- certificates (A4 landscape) ---------- */
+function stars(n,col){var s='';for(var i=0;i<n;i++)s+='<path transform="translate('+(i*14)+' 0)" d="M6 0l1.8 4.2 4.6.4-3.5 3 1 4.5L6 9.8 2.1 12.1l1-4.5L-.4 4.6 4.2 4.2z" fill="'+col+'"/>';return s}
+function seal(year,label){
+  return '<svg viewBox="0 0 120 150" style="width:30mm;height:37mm"><path d="M38 92 L28 148 L48 136 L60 150 L64 96z" fill="#1e3a78"/><path d="M82 92 L92 148 L72 136 L60 150 L56 96z" fill="#2850a0"/>'+
+   '<circle cx="60" cy="58" r="50" fill="#c9971c"/>'+Array.apply(null,{length:36}).map(function(_,i){var a=i*10*Math.PI/180;return '<circle cx="'+(60+50*Math.cos(a)).toFixed(1)+'" cy="'+(58+50*Math.sin(a)).toFixed(1)+'" r="5" fill="#c9971c"/>'}).join('')+
+   '<circle cx="60" cy="58" r="42" fill="#12263f" stroke="#f3d27a" stroke-width="2.5"/><circle cx="60" cy="58" r="36" fill="none" stroke="#f3d27a" stroke-width="1" stroke-dasharray="2 2"/>'+
+   '<text x="60" y="50" text-anchor="middle" font-family="Segoe Script,Brush Script MT,cursive" font-size="15" fill="#f3d27a">'+label+'</text><text x="60" y="75" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="20" fill="#f3d27a">'+year+'</text></svg>';
+}
+function laurel(inner){
+  var leaves="";for(var i=0;i<10;i++){var t=35+i*15;leaves+='<ellipse cx="0" cy="-48" rx="5" ry="11" transform="rotate('+(-t)+') rotate(-25 0 -48)" fill="'+(i%2?'#d4a72c':'#b8861b')+'" stroke="#7a5a10" stroke-width=".6"/><ellipse cx="0" cy="-48" rx="5" ry="11" transform="rotate('+t+') rotate(25 0 -48)" fill="'+(i%2?'#b8861b':'#d4a72c')+'" stroke="#7a5a10" stroke-width=".6"/>'}
+  return '<svg viewBox="-70 -70 140 140" style="width:40mm;height:40mm;position:absolute;left:0;top:0">'+leaves+'</svg>'+inner;
+}
+function certPrep(s){
+  var st=CARDS.settings,y=CARDS.year;
+  return '<div class="cert prep">'+
+   '<svg class="pl" viewBox="0 0 60 210" preserveAspectRatio="none"><rect width="60" height="210" fill="#173a63"/><path d="M60 0 C20 40 50 90 18 130 C0 155 30 190 10 210" stroke="#e9b949" stroke-width="1.6" fill="none"/><path d="M52 0 C14 45 42 92 10 132 C-6 158 22 192 2 210" stroke="#f6d77d" stroke-width=".8" fill="none"/><path d="M60 0 L60 210 L46 210 C70 150 30 90 60 0z" fill="#e9b949" opacity=".9"/></svg>'+
+   '<svg class="st1" viewBox="-2 -2 44 16">'+stars(3,'#e9b949')+'</svg>'+
+   '<div class="books"><svg viewBox="0 0 70 60">'+[[4,38,58,'#3b78c4'],[8,28,54,'#f3f1ea'],[2,18,56,'#2c5f9e'],[6,8,52,'#f3f1ea']].map(function(b){return '<rect x="'+b[0]+'" y="'+b[1]+'" width="'+b[2]+'" height="9" rx="1.5" fill="'+b[3]+'" stroke="#0d1f36" stroke-width=".6"/><rect x="'+b[0]+'" y="'+(b[1]+2)+'" width="'+b[2]+'" height="1.2" fill="#e9b949"/><rect x="'+b[0]+'" y="'+(b[1]+6)+'" width="'+b[2]+'" height="1.2" fill="#e9b949"/>'}).join('')+'<rect x="10" y="48" width="56" height="9" rx="4.5" fill="#f6efe0" stroke="#c9b48a"/><circle cx="38" cy="52.5" r="3" fill="#1e3a78"/><path d="M38 52 l-6 8 M38 52 l6 8" stroke="#1e3a78" stroke-width="2"/></svg></div>'+
+   '<div class="crn"><span>SHINE<br>BRIGHT!</span></div><div class="crn2"><span>BIG<br>DREAMS!</span></div>'+
+   '<div class="top"><img src="'+(logo('SCHOOL')||'')+'" class="lgS"><div class="sn">'+esc(st.School)+'<i>'+esc(st.District)+'</i></div></div>'+
+   '<svg class="cap" viewBox="0 0 60 44"><path d="M30 2 L58 14 L30 26 L2 14z" fill="#12263f"/><path d="M14 19 v11 c0 5 32 5 32 0 v-11 l-16 7z" fill="#1d3557"/><path d="M48 15 v18" stroke="#e9b949" stroke-width="2"/><circle cx="48" cy="35" r="3" fill="#e9b949"/>'+stars(1,'#e9b949').replace('translate(0 0)','translate(4 28) scale(.7)')+'</svg>'+
+   '<div class="t1">Graduation</div><div class="t2">CERTIFICATE</div><div class="t3">OF ATTAINMENT · PREP TO GRADE 1</div>'+
+   '<div class="rib"><span>THIS CERTIFIES THAT</span></div>'+
+   '<div class="nmc">'+esc(upper(s.sur+' '+s.name))+'</div>'+
+   '<div class="txt">has successfully completed the Preparatory (Prep) programme at '+esc(st.School)+' in '+y+' and is hereby promoted to <b>Grade One</b>, in recognition of '+(s.sex==='F'?'her':s.sex==='M'?'his':'their')+' hard work, growth, achievement and dedication.</div>'+
+   '<div class="ks">Keep shining, little star!</div>'+
+   '<div class="ph2"><img src="'+(ph('S:'+s.id.toUpperCase())||SILHOUETTE)+'"></div>'+
+   '<div class="sig l"><span>'+esc(st.HeadTeacher||'')+'</span><i>Head Teacher</i></div>'+
+   '<div class="sig r"><span>'+esc(CVIEW.date||todayTxt())+'</span><i>Date</i></div>'+
+   '<div class="sl">'+seal(y,'Class of')+'</div>'+
+   '<div class="lgs">'+(logo('CHURCH')?'<img src="'+logo('CHURCH')+'">':'')+(logo('PROVINCE')?'<img src="'+logo('PROVINCE')+'">':'')+'</div>'+
+  '</div>';
+}
+function certG6(s){
+  var st=CARDS.settings,y=CARDS.year;
+  return '<div class="cert g6">'+
+   '<svg class="geo" viewBox="0 0 297 210" preserveAspectRatio="none"><path d="M0 0 H70 L0 55z" fill="#16306b"/><path d="M0 0 H50 L0 38z" fill="#2347a0"/><path d="M0 58 L74 0 H80 L0 62z" fill="#e9b949"/>'+
+     '<path d="M297 210 H222 L297 150z" fill="#16306b"/><path d="M297 210 H246 L297 170z" fill="#2347a0"/><path d="M297 146 L218 210 H212 L297 142z" fill="#e9b949"/>'+
+     '<path d="M297 0 H250 L297 30z" fill="#16306b" opacity=".9"/><path d="M0 210 H50 L0 180z" fill="#16306b" opacity=".9"/>'+
+     '<path d="M120 0 L180 0 L150 60z" fill="#eef1f6"/><path d="M200 210 L260 210 L230 150z" fill="#eef1f6"/></svg>'+
+   '<div class="frame"></div>'+
+   '<div class="rosette"><svg viewBox="0 0 100 130"><path d="M32 70 L20 128 L38 118 L48 130 L56 76z" fill="#1d4ed8"/><path d="M68 70 L80 128 L62 118 L52 130 L44 76z" fill="#1e40af"/>'+Array.apply(null,{length:24}).map(function(_,i){var a=i*15*Math.PI/180;return '<circle cx="'+(50+38*Math.cos(a)).toFixed(1)+'" cy="'+(46+38*Math.sin(a)).toFixed(1)+'" r="9" fill="#2563eb"/>'}).join('')+'<circle cx="50" cy="46" r="36" fill="#1d4ed8"/><circle cx="50" cy="46" r="27" fill="#e9b949"/><circle cx="50" cy="46" r="21" fill="#f6d77d"/>'+(logo('SCHOOL')?'<image href="'+logo('SCHOOL')+'" x="33" y="29" width="34" height="34" preserveAspectRatio="xMidYMid meet"/>':'')+'</svg></div>'+
+   '<div class="lgtop">'+(logo('SCHOOL')?'<img src="'+logo('SCHOOL')+'">':'')+'<div><b>'+esc(st.School)+'</b><i>'+esc(st.District)+'</i></div></div>'+
+   '<div class="h1">CERTIFICATE</div><div class="h2">OF ATTAINMENT</div>'+
+   '<svg class="div" viewBox="0 0 160 10"><path d="M2 5 H62 M98 5 H158" stroke="#b8861b" stroke-width="1.4"/><path d="M62 5 L70 1 L80 5 L70 9z M98 5 L90 1 L80 5 L90 9z" fill="#b8861b"/><circle cx="80" cy="5" r="2" fill="#b8861b"/></svg>'+
+   '<div class="h3">THIS CERTIFICATE IS PROUDLY PRESENTED TO</div>'+
+   '<div class="nm6">'+esc(upper(s.sur+' '+s.name))+'</div>'+
+   '<div class="tx6">for successfully completing Primary Education (Prep to Grade 6) at '+esc(st.School)+' in '+y+'<br>and attaining entry to <b>Grade 7, Junior High School</b> in '+(Number(y)+1)+'.</div>'+
+   '<div class="wreath">'+laurel((logo('PROVINCE')?'<img src="'+logo('PROVINCE')+'">':''))+'</div>'+
+   '<div class="s6 l"><span>'+esc(st.HeadTeacher||'')+'</span><i>Head Teacher</i></div>'+
+   '<div class="s6 r"><span>'+esc(st.BoardChair||'')+'</span><i>Chairman, Board of Management</i></div>'+
+   '<div class="dt6">Given on '+esc(CVIEW.date||todayTxt())+'</div>'+
+   '<div class="ch6">'+(logo('CHURCH')?'<img src="'+logo('CHURCH')+'">':'')+'</div>'+
+  '</div>';
+}
+var CERT_CSS='.cert{width:297mm;height:210mm;position:relative;overflow:hidden;box-sizing:border-box;background:#fff;font-family:Georgia,"Times New Roman",serif;color:#12263f;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+ '.cert.prep{border:5mm solid #12263f;outline:1.6mm solid #e9b949;outline-offset:-6.6mm}'+
+ '.prep .pl{position:absolute;left:0;top:0;width:58mm;height:100%}.prep .st1{position:absolute;left:14mm;top:58mm;width:34mm}'+
+ '.prep .books{position:absolute;left:4mm;bottom:6mm;width:52mm}'+
+ '.prep .crn{position:absolute;right:0;top:0;width:44mm;height:34mm;background:#173a63;clip-path:polygon(0 0,100% 0,100% 100%);border-left:1mm solid #e9b949}.prep .crn span{position:absolute;right:4mm;top:5mm;color:#e9b949;font-weight:700;font-size:4mm;text-align:right;line-height:1.2}'+
+ '.prep .crn2{position:absolute;right:0;bottom:0;width:44mm;height:34mm;background:#173a63;clip-path:polygon(100% 0,100% 100%,0 100%)}.prep .crn2 span{position:absolute;right:4mm;bottom:5mm;color:#e9b949;font-weight:700;font-size:4mm;text-align:right;line-height:1.2}'+
+ '.prep .top{position:absolute;left:64mm;top:9mm;display:flex;align-items:center;gap:3mm}.prep .lgS{height:27mm;width:auto}.prep .sn{font-weight:700;font-size:5mm;line-height:1.15;max-width:75mm}.prep .sn i{display:block;font-size:3mm;font-weight:400;color:#475569}'+
+ '.prep .cap{position:absolute;left:192mm;top:22mm;width:20mm;transform:rotate(12deg)}'+
+ '.prep .t1{position:absolute;left:58mm;right:62mm;top:30mm;text-align:center;font-family:"Segoe Script","Brush Script MT","Lucida Handwriting",cursive;font-size:20mm;line-height:1;color:#b8861b;text-shadow:.3mm .3mm 0 #7a5a10}'+
+ '.prep .t2{position:absolute;left:58mm;right:62mm;top:53mm;text-align:center;font-size:12mm;font-weight:700;letter-spacing:1mm;color:#12263f}'+
+ '.prep .t3{position:absolute;left:58mm;right:62mm;top:67mm;text-align:center;font-size:3.4mm;letter-spacing:.8mm;color:#475569;font-family:"Segoe UI",Arial,sans-serif}'+
+ '.prep .rib{position:absolute;left:92mm;width:110mm;top:75mm;height:11mm;background:linear-gradient(#f6d77d,#c9971c);clip-path:polygon(0 0,100% 0,96% 50%,100% 100%,0 100%,4% 50%);display:flex;align-items:center;justify-content:center}.prep .rib span{font-family:"Segoe UI",Arial,sans-serif;font-weight:800;letter-spacing:.8mm;font-size:4.4mm;color:#12263f}'+
+ '.prep .nmc{position:absolute;left:66mm;right:66mm;top:91mm;text-align:center;font-size:11mm;font-style:italic;font-weight:700;color:#1d3a6e;border-bottom:.4mm dashed #475569;padding-bottom:1mm}'+
+ '.prep .txt{position:absolute;left:68mm;right:68mm;top:111mm;text-align:center;font-size:4.2mm;line-height:1.45;color:#1f2937}'+
+ '.prep .ks{position:absolute;left:66mm;right:66mm;top:136mm;text-align:center;font-size:6.5mm;font-style:italic;font-weight:700;color:#d4a017}'+
+ '.prep .ph2{position:absolute;right:16mm;top:42mm;width:44mm;height:56mm;border:1.6mm solid #e9b949;border-radius:4mm;overflow:hidden;box-shadow:0 0 0 1mm #12263f}.prep .ph2 img{width:100%;height:100%;object-fit:cover}'+
+ '.prep .sig{position:absolute;bottom:16mm;width:58mm;text-align:center}.prep .sig span{display:block;border-bottom:.4mm dashed #475569;font-size:4mm;min-height:6mm;font-family:"Segoe Script",cursive}.prep .sig i{font-style:normal;font-weight:700;font-size:4.6mm}.prep .sig.l{left:70mm}.prep .sig.r{right:52mm}'+
+ '.prep .sl{position:absolute;left:142mm;bottom:9mm}.prep .lgs{position:absolute;right:52mm;bottom:40mm;display:flex;gap:3mm}.prep .lgs img{height:17mm;width:auto}'+
+ '.g6 .geo{position:absolute;inset:0;width:100%;height:100%}.g6 .frame{position:absolute;inset:9mm;border:1.2mm solid #b8861b;outline:.4mm solid #b8861b;outline-offset:1.2mm}'+
+ '.g6 .rosette{position:absolute;right:16mm;top:12mm;width:34mm}'+
+ '.g6 .lgtop{position:absolute;left:20mm;top:16mm;display:flex;align-items:center;gap:3mm}.g6 .lgtop img{height:24mm;width:auto}.g6 .lgtop b{display:block;font-size:4.6mm}.g6 .lgtop i{font-size:2.8mm;color:#475569}'+
+ '.g6 .h1{position:absolute;left:0;right:0;top:40mm;text-align:center;font-family:Stencil,Impact,"Arial Black",sans-serif;font-size:19mm;letter-spacing:1.4mm;color:#151515}'+
+ '.g6 .h2{position:absolute;left:0;right:0;top:61mm;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-weight:700;font-size:6.5mm;letter-spacing:1mm;color:#c48a12}'+
+ '.g6 .div{position:absolute;left:108mm;width:81mm;top:71mm}'+
+ '.g6 .h3{position:absolute;left:0;right:0;top:79mm;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-weight:800;font-size:4.4mm;letter-spacing:.4mm;color:#222}'+
+ '.g6 .nm6{position:absolute;left:46mm;right:46mm;top:89mm;text-align:center;font-size:12mm;font-style:italic;font-weight:700;color:#16306b;border-bottom:.8mm solid #111;padding-bottom:1mm}'+
+ '.g6 .tx6{position:absolute;left:30mm;right:30mm;top:112mm;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-size:4.5mm;line-height:1.5;color:#1f2937}'+
+ '.g6 .wreath{position:absolute;left:128.5mm;top:135mm;width:40mm;height:40mm}.g6 .wreath img{position:absolute;left:11mm;top:10mm;width:18mm;height:18mm;object-fit:contain}'+
+ '.g6 .s6{position:absolute;bottom:31mm;width:66mm;text-align:center}.g6 .s6 span{display:block;border-bottom:.5mm dotted #111;min-height:7mm;font-size:4mm;font-family:"Segoe Script",cursive}.g6 .s6 i{font-style:normal;font-weight:700;font-size:4mm}.g6 .s6.l{left:34mm}.g6 .s6.r{right:44mm}'+
+ '.g6 .dt6{position:absolute;left:0;right:0;bottom:17mm;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-size:3.4mm;color:#475569}'+
+ '.g6 .ch6{position:absolute;right:54mm;top:15mm}.g6 .ch6 img{height:22mm;width:auto}';
+
+/* ---------- screen ---------- */
+function loadCards(force){
+  if(CARDS&&!force)return Promise.resolve(CARDS);
+  return call('apiCards',AUTH).then(function(d){CARDS=d;return d});
+}
+function loadPhotos(keys){
+  var need=keys.filter(function(k){return CARDS.photoKeys.indexOf(k)>=0&&!PHOTOS[k]});
+  if(!need.length)return Promise.resolve();
+  var chunks=[];for(var i=0;i<need.length;i+=40)chunks.push(need.slice(i,i+40));
+  return chunks.reduce(function(p,c){return p.then(function(){return call('apiPhotos',AUTH,c).then(function(m){Object.keys(m).forEach(function(k){PHOTOS[k]=m[k]})})})},Promise.resolve());
+}
+function people(){
+  if(CVIEW.tab==='tid')return CARDS.teachers.map(function(t){return {kind:'T',id:t.id,k:t.k,pkey:'T:'+t.id,title:t.name,sub:t.position+(t.cls&&t.cls!=='All'?' · '+t.cls:''),cls:t.cls,row:t}});
+  var cc=CVIEW.cc;
+  return CARDS.students.filter(function(s){return !cc||s.cc===cc}).sort(function(a,b){return (a.cc+a.sur+a.name).localeCompare(b.cc+b.sur+b.name)})
+    .map(function(s){return {kind:'S',id:s.id,k:s.k,pkey:'S:'+s.id.toUpperCase(),title:s.sur+' '+s.name,sub:s.grade+' · Class '+s.cc,cc:s.cc,sex:s.sex,dob:s.dob,row:s}});
+}
+function renderCards(nav){
+  $('#main').innerHTML=nav+'<div class="card">Loading…</div>';bindPages();
+  loadCards().then(function(){drawCards(nav)}).catch(function(e){$('#main').innerHTML=nav+'<div class="card"><div class="note bad">Needs the internet: '+esc(errText(e))+'</div></div>';bindPages()});
+}
+function drawCards(nav){
+  var tabs=[['tid','user','Teacher ID cards'],['sid','people','Student ID cards'],['cprep','image','Prep certificates'],['cg6','image','Grade 6 certificates']];
+  var cls=[];CARDS.students.forEach(function(s){if(cls.indexOf(s.cc)<0)cls.push(s.cc)});
+  cls.sort(function(a,b){return (/^prep/i.test(a)?0:+a[0])-(/^prep/i.test(b)?0:+b[0])||(a<b?-1:1)});
+  var isCert=CVIEW.tab==='cprep'||CVIEW.tab==='cg6';
+  if(CVIEW.tab==='sid'&&CVIEW.cc&&cls.indexOf(CVIEW.cc)<0)CVIEW.cc='';
+  var list=isCert?CARDS.students.filter(function(s){return CVIEW.tab==='cprep'?s.grade==='Prep':s.grade==='Grade 6'}).map(function(s){return {kind:'S',id:s.id,pkey:'S:'+s.id.toUpperCase(),title:s.sur+' '+s.name,sub:'Class '+s.cc+' · '+(s.result||'no result yet')+(s.yearPct!==''?' · '+Math.round(s.yearPct)+'%':''),row:s,pre:s.result==='PROMOTE'}}):people();
+  if(!CVIEW.selFor||CVIEW.selFor!==CVIEW.tab+CVIEW.cc){CVIEW.sel={};list.forEach(function(p){CVIEW.sel[p.id]=isCert?!!p.pre:true});CVIEW.selFor=CVIEW.tab+CVIEW.cc}
+  var h=nav+'<div class="card"><div class="tabs" id="ctabs">'+tabs.map(function(t){return '<button data-c="'+t[0]+'" class="'+(CVIEW.tab===t[0]?'on':'')+'">'+ic(t[1])+t[2]+'</button>'}).join('')+'</div>';
+  h+='<div class="row">';
+  if(CVIEW.tab==='sid')h+='<label class="f"><span>Class</span><select id="cCls"><option value="">All classes</option>'+cls.map(function(c){return '<option'+(c===CVIEW.cc?' selected':'')+'>'+esc(c)+'</option>'}).join('')+'</select></label>';
+  if(!isCert)h+='<label class="f"><span>Print on</span><select id="cMode"><option value="cr80"'+(CVIEW.mode==='cr80'?' selected':'')+'>ID card printer (CR80 cards, front + back)</option><option value="a4"'+(CVIEW.mode==='a4'?' selected':'')+'>A4 paper – 10 cards per page, cut out</option></select></label>';
+  else h+='<label class="f"><span>Date on certificate</span><input id="cDate" value="'+esc(CVIEW.date||todayTxt())+'"></label>';
+  h+='<div style="flex:0 0 auto;min-width:0"><button class="btn gold" id="cPrint">'+ic('download')+'Print selected</button></div></div>';
+  if(isCert)h+='<p class="small muted">Ticked = students marked <b>PROMOTE</b> in the results uploaded from Excel. You can tick or untick anyone. Head Teacher'+(CVIEW.tab==='cg6'?' and Board Chairman':'')+' names come from Setup.</p>';
+  else h+='<p class="small muted">Card details, logos and the “valid until” date come from <b>Setup</b>. Click a photo to add or change it (a phone photo is fine; it is cropped to passport shape).</p>';
+  h+='<div class="row" style="margin:6px 0"><button class="btn lite" id="cAll" style="flex:0 0 auto">Tick all</button><button class="btn lite" id="cNone" style="flex:0 0 auto">Untick all</button><span class="small muted" id="cCount" style="align-self:center"></span></div>';
+  h+='<div class="plist">'+list.map(function(p){return '<label class="pp"><input type="checkbox" data-id="'+esc(p.id)+'"'+(CVIEW.sel[p.id]?' checked':'')+'><span class="pph" data-pk="'+esc(p.pkey)+'" title="Add or change photo"><img src="'+(ph(p.pkey)||SILHOUETTE)+'"></span><span class="ppt"><b>'+esc(p.title)+'</b><i>'+esc(p.id)+' · '+esc(p.sub)+'</i></span></label>'}).join('')+(list.length?'':'<p class="muted">Nobody here yet. Upload the class lists and results from Excel first.</p>')+'</div>';
+  if(list.length){var first=list[0];h+='<h2 style="margin-top:16px">Preview</h2><div class="prev" id="cPrev"></div>'}
+  h+='</div>';
+  $('#main').innerHTML=h;bindPages();
+  [].forEach.call(document.querySelectorAll('#ctabs button'),function(b){b.onclick=function(){CVIEW.tab=b.dataset.c;drawCards(nav)}});
+  var c=$('#cCls');if(c)c.onchange=function(){CVIEW.cc=c.value;drawCards(nav)};
+  var m=$('#cMode');if(m)m.onchange=function(){CVIEW.mode=m.value};
+  var dt=$('#cDate');if(dt)dt.onchange=function(){CVIEW.date=dt.value;preview(list)};
+  function count(){$('#cCount').textContent=list.filter(function(p){return CVIEW.sel[p.id]}).length+' of '+list.length+' selected'}
+  [].forEach.call(document.querySelectorAll('.plist input[type=checkbox]'),function(x){x.onchange=function(){CVIEW.sel[x.dataset.id]=x.checked;count()}});
+  $('#cAll').onclick=function(){list.forEach(function(p){CVIEW.sel[p.id]=true});drawCards(nav)};
+  $('#cNone').onclick=function(){list.forEach(function(p){CVIEW.sel[p.id]=false});drawCards(nav)};
+  [].forEach.call(document.querySelectorAll('.pph'),function(sp){sp.onclick=function(e){e.preventDefault();pickPhoto(sp.dataset.pk,function(){drawCards(nav)})}});
+  $('#cPrint').onclick=function(){var chosen=list.filter(function(p){return CVIEW.sel[p.id]});if(!chosen.length){toast('Tick at least one person.',1);return}
+    toast('Preparing '+chosen.length+'…');loadPhotos(chosen.map(function(p){return p.pkey})).then(function(){printOut(chosen)}).catch(function(){printOut(chosen)})};
+  count();
+  loadPhotos(list.map(function(p){return p.pkey})).then(function(){
+    [].forEach.call(document.querySelectorAll('.pph'),function(sp){if(ph(sp.dataset.pk))sp.querySelector('img').src=ph(sp.dataset.pk)});preview(list)}).catch(function(){preview(list)});
+  preview(list);
+}
+function preview(list){
+  var el=$('#cPrev');if(!el||!list.length)return;var p=list.filter(function(x){return CVIEW.sel[x.id]})[0]||list[0];
+  if(CVIEW.tab==='cprep'||CVIEW.tab==='cg6'){el.innerHTML='<div class="cwrap"><div class="cscale">'+(CVIEW.tab==='cprep'?certPrep(p.row):certG6(p.row))+'</div></div>';return}
+  el.innerHTML='<div class="cardpair"><div class="cz">'+cardFront(p)+'</div><div class="cz">'+cardBack(p)+'</div></div>';
+}
+function pickPhoto(key,done){
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=function(){var f=inp.files[0];if(!f)return;var fr=new FileReader();fr.onload=function(){var img=new Image();img.onload=function(){
+    var W=300,H=400,c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+    var r=Math.max(W/img.width,H/img.height),w=img.width*r,h=img.height*r;g.fillStyle='#fff';g.fillRect(0,0,W,H);g.drawImage(img,(W-w)/2,(H-h)/2.6,w,h);
+    var d=c.toDataURL('image/jpeg',0.82);toast('Saving photo…');
+    call('apiSetPhoto',AUTH,key,d).then(function(){PHOTOS[key]=d;if(CARDS.photoKeys.indexOf(key)<0)CARDS.photoKeys.push(key);toast('Photo saved.');done()}).catch(function(e){toast(isAuthErr(e)?errText(e):'No network – connect to save photos.',1)})};img.src=fr.result};fr.readAsDataURL(f)};
+  inp.click();
+}
+function printOut(list){
+  var box=$('#printArea'),css=$('#printCss'),html='';
+  if(CVIEW.tab==='cprep'||CVIEW.tab==='cg6'){
+    css.textContent='@page{size:A4 landscape;margin:0}';
+    html=list.map(function(p){return '<div class="pg">'+(CVIEW.tab==='cprep'?certPrep(p.row):certG6(p.row))+'</div>'}).join('');
+  }else if(CVIEW.mode==='cr80'){
+    css.textContent='@page{size:85.6mm 54mm;margin:0}#printArea .idc{border-radius:0}';
+    html=list.map(function(p){return '<div class="pg">'+cardFront(p)+'</div><div class="pg">'+cardBack(p)+'</div>'}).join('');
+  }else{
+    css.textContent='@page{size:A4 portrait;margin:8mm 11mm}#printArea .idc{outline:.15mm dashed #999}';
+    for(var i=0;i<list.length;i+=10){
+      var part=list.slice(i,i+10),fr='',bk='';
+      part.forEach(function(p){fr+=cardFront(p)});
+      // backs: swap the two columns so they line up when printed on both sides (flip on long edge)
+      for(var r=0;r<part.length;r+=2){var a=part[r],b=part[r+1];bk+=(b?cardBack(b):'<div class="idc" style="visibility:hidden"></div>')+cardBack(a)}
+      html+='<div class="pg sheet">'+fr+'</div><div class="pg sheet">'+bk+'</div>';
+    }
+  }
+  box.innerHTML=html;
+  setTimeout(function(){window.print()},400);
+}
+
+(function(){var st=document.createElement('style');st.textContent=CARD_CSS+CERT_CSS;document.head.appendChild(st)})();
+
+/* ---------------- start ---------------- */
+(function start(){
+  pill();
+  if(!AUTH){showLogin();return}
+  loadLocal();
+  if(DATA){ONLINE=null;startApp();sync().then(function(){if(ONLINE)return relogin()})}
+  else{$('#main').innerHTML='<div class="card">Loading your classes…</div>';
+    call('apiLogin',AUTH).then(function(d){DATA=d;takeLogos();mergeQueue();saveData();ONLINE=true;LAST=Date.now();startApp()})
+    .catch(function(e){showLogin(isAuthErr(e)?errText(e):'Cannot reach the school database. Connect to the school Wi-Fi and sign in.')})}
+})();
+</script>
+</body>
+</html>
