@@ -4,7 +4,7 @@
  * Icons: Microsoft Fluent Emoji (MIT licence). */
 (function () {
 'use strict';
-var VERSION = '11.0';
+var VERSION = '12.1';
 var $ = function (s, r) { return (r || document).querySelector(s); };
 var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
 function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -25,7 +25,7 @@ function toast(msg, bad) {
 
 /* ------------------------------------------------------------------ API */
 function apiUrl() { return window.THPS_API || ls('thpsm_api') || ''; }
-var AUTH = ls('thpsm_auth'), ME = null, PAGE = ls('thps_page') || 'home', ONLINE = navigator.onLine, OUTBOX = ls('thps_outbox') || [], YEAR = null;
+var AUTH = ls('thpsm_auth'), MAIN = ls('thpsm_main'), FIN = ls('thps_fin'), ME = null, PAGE = ls('thps_page') || 'home', ONLINE = navigator.onLine, OUTBOX = ls('thps_outbox') || [], YEAR = null;
 function call(fn) {
   var args = [].slice.call(arguments, 1);
   if (window.THPS_MOCK) return window.THPS_MOCK(fn, args);
@@ -34,15 +34,21 @@ function call(fn) {
     .then(function (r) { return r.text(); })
     .then(function (t) { var j; try { j = JSON.parse(t); } catch (e) { throw new Error('NET'); } if (!j.ok) throw new Error(j.error); return j.data; });
 }
-function isAuth(e) { return /AUTH/.test(String(e && e.message || e)); }
-function errText(e) { var m = String(e && e.message || e); if (m === 'NET' || /Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No network'; return m.replace(/^Error:\s*/, '').replace(/^AUTH:\s*/, ''); }
-function ckey(k) { return 'thps_c_' + (AUTH ? AUTH.user.toLowerCase() : '') + '_' + k; }
+function isAuth(e) { return /^(Error: )?AUTH:/.test(String(e && e.message || e)); }
+function isFinAuth(e) { return /FINAUTH:/.test(String(e && e.message || e)); }
+function MA() { return { t: MAIN && MAIN.t }; }                       // Main login
+function FA() { return { t: MAIN && MAIN.t, f: FIN }; }               // Main + Finance login
+function errText(e) { var m = String(e && e.message || e); if (m === 'NET' || /Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No network'; return m.replace(/^Error:\s*/, '').replace(/^(FIN)?AUTH:\s*/, ''); }
+function ckey(k) { return 'thps_c_' + (MAIN ? String(MAIN.user || MAIN.role).toLowerCase() : '') + '_' + k; }
 /* online first, the device copy when there is no network */
 function load(key, fn) {
   var args = [].slice.call(arguments, 2);
   return call.apply(null, [fn].concat(args)).then(function (d) { setOnline(true); ls(ckey(key), d); return d; })
     .catch(function (e) {
       if (isAuth(e)) { signOut(errText(e)); throw e; }
+      if (isFinAuth(e)) { FIN = null; ls('thps_fin', null); throw e; }
+      if (/Wrong UserName or Password/.test(errText(e))) { AUTH = null; ls('thpsm_auth', null); throw e; }
+      if (errText(e) !== 'No network') throw e;
       setOnline(false);
       var d = ls(ckey(key)); if (d) { d._offline = true; return d; }
       throw e;
@@ -56,17 +62,18 @@ function queueSave(name, rec) {
 }
 var FLUSHING = false;
 function flush() {
-  if (FLUSHING || !OUTBOX.length || !AUTH) return Promise.resolve();
+  if (FLUSHING || !OUTBOX.length || !MAIN) return Promise.resolve();
   FLUSHING = true;
   var o = OUTBOX[0];
-  var p = o.del ? call('apiDeleteRow', AUTH, o.name, o.rec.Key) : call('apiSaveRow', AUTH, o.name, o.rec);
+  var au = o.name === 'CCB' ? FA() : MA();
+  var p = o.del ? call('apiDeleteRow', au, o.name, o.rec.Key) : call('apiSaveRow', au, o.name, o.rec);
   return p.then(function (r) {
     OUTBOX.shift(); ls('thps_outbox', OUTBOX); FLUSHING = false; setOnline(true);
     if (r && r.saved === false) toast('Not saved (' + o.name + '): ' + r.why, 1);
     return flush();
   }).catch(function (e) {
     FLUSHING = false;
-    if (isAuth(e)) return;
+    if (isAuth(e) || isFinAuth(e)) return;
     if (errText(e) !== 'No network') { OUTBOX.shift(); ls('thps_outbox', OUTBOX); toast('Not saved: ' + errText(e), 1); return flush(); }
     setOnline(false);
   });
@@ -79,16 +86,25 @@ setInterval(function () { if (OUTBOX.length) flush(); }, 60000);
 var C = { home: '#E46C0A', stu: '#D86B1E', asm: '#1F6FB2', tch: '#7030A0', fin: '#2E8B57', rpt: '#8B1A1A', adm: '#2F5597', inv: '#138D8D', oth: '#7A4E2D' };
 var MODS = [
   { id: 'home', label: 'Dashboard', icon: 'house', c: C.home, sub: 'Overview of the school' },
-  { id: 'students', label: 'Students', icon: 'student', c: C.stu, sub: 'Class lists · add or correct' },
-  { id: 'assess', label: 'Assessment', icon: 'bar_chart', c: C.asm, sub: 'Marks entry, ID cards', href: 'marks.html' },
-  { id: 'Staff', label: 'Teachers', icon: 'teacher', c: C.tch, sub: 'Staff details & postings', need: 'senior' },
+  { id: 'students', label: 'Students', icon: 'student', c: C.stu, sub: 'Student database', need: 'admin' },
+  { id: 'assess', label: 'Assessment', icon: 'bar_chart', c: C.asm, sub: 'Results, marks entry, ID cards' },
+  { id: 'Staff', label: 'Teachers', icon: 'teacher', c: C.tch, sub: 'Staff details & postings', need: 'admin' },
   { id: 'Finance', label: 'Finance', icon: 'money_bag', c: C.fin, sub: 'Combined cash book', need: 'admin' },
-  { id: 'SchoolReports', label: 'School Reports', icon: 'page_facing_up', c: C.rpt, sub: 'Incident · situational · inspection' },
+  { id: 'SchoolReports', label: 'School Reports', icon: 'page_facing_up', c: C.rpt, sub: 'Incident · situational · inspection', need: 'senior' },
   { id: 'Events', label: 'Admin Routines', icon: 'spiral_calendar', c: C.adm, sub: 'Term dates, events, duties' },
-  { id: 'Inventory', label: 'Infrastructure', icon: 'building_construction', c: C.inv, sub: 'Buildings, stationery, books', need: 'admin' },
-  { id: 'FormsLog', label: 'Other Forms', icon: 'card_index', c: C.oth, sub: 'Forms register' }
+  { id: 'Inventory', label: 'Infrastructure', icon: 'building_construction', c: C.inv, sub: 'Infrastructure, stationery, curriculum', need: 'admin' },
+  { id: 'FormsLog', label: 'Other Forms', icon: 'card_index', c: C.oth, sub: 'Forms register', need: 'teacher' }
 ];
-function can(need) { if (!ME) return false; if (need === 'admin') return ME.admin; if (need === 'senior') return ME.admin || ME.senior; return true; }
+/* who opens what - the same as the Excel Main login (LOGIN sheet) */
+function can(need) {
+  var r = MAIN ? MAIN.role : '';
+  if (r === 'Admin') return true;
+  if (need === 'admin') return false;
+  if (need === 'senior') return r === 'Senior';
+  if (need === 'teacher') return r === 'Teacher';
+  return !!r;
+}
+function roleText() { return { Admin: 'Administrator', Teacher: 'Teacher', Senior: 'Senior Teacher' }[MAIN && MAIN.role] || ''; }
 var FORMS = ['Leave application', 'DSA claim', 'Leave fare', 'EDB023 Record of appointment', 'RoDSS', 'EDB020 Registration', 'TSC Form 28', 'TSC Form 30', 'TSC Form 23',
   'Teacher sick leave', 'Student sick sheet', 'Travel request', 'Student counselling', 'Parent conference', 'Behaviour report', 'Suspension / termination',
   'NSL finance', 'TSL finance', 'TISA finance', 'BSP finance', 'United Finance loan', 'Nationwide Finance loan', 'Other'];
@@ -119,41 +135,99 @@ var SCHEMA = {
     cols: [['Date', 'd'], ['Form'], ['Person'], ['Purpose']], sort: 'Date' }
 };
 
-/* ------------------------------------------------------------------ sign in */
-function showLogin(msg) {
-  var needLink = !apiUrl() || msg === 'NOLINK';
-  $('#root').innerHTML = '<div class="login"><div class="box"><div class="logos"><img src="img/school.png" alt=""><img src="img/province.png" alt=""></div>' +
-    '<h2>THPS SCHOOL MANAGER</h2><div class="muted">Tom Hoey Primary School · Mougulu, Middle Fly District</div>' +
-    (msg && msg !== 'NOLINK' ? '<div class="note bad" style="margin-top:12px">' + esc(msg) + '</div>' : '') +
-    '<div class="form">' +
-    (needLink ? '<label>School database link (ends with /exec) – needed once<input id="lUrl" value="' + esc(apiUrl()) + '" placeholder="https://script.google.com/macros/s/…/exec"></label>' : '') +
-    '<label>UserName<input id="lU" autocomplete="username" autocapitalize="none" value="' + esc(ls('thpsm_last') || '') + '"></label>' +
-    '<label>Password<input id="lP" type="password" autocomplete="current-password"></label></div>' +
-    '<button class="btn pri" id="lGo" style="width:100%;justify-content:center;margin-top:14px">' + ico('key') + 'Sign in</button>' +
-    '<p class="muted" style="font-size:12px;margin-top:12px">Use the same UserName and Password as the Assessment (SARRS). The first sign-in needs the internet; after that the app opens without signal.</p></div></div>';
-  var go = function () {
-    var u = $('#lU').value.trim(), p = $('#lP').value;
-    if ($('#lUrl')) { var url = $('#lUrl').value.trim(); if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) return showLogin('Paste the database link from the Head Teacher. It starts with https://script.google.com/'); ls('thpsm_api', url); }
-    if (!u || !p) return showLogin('Type your UserName and Password.');
-    $('#lGo').disabled = true; $('#lGo').innerHTML = 'Signing in…';
-    var a = { user: u, pass: p };
-    call('apiDashboard', a).then(function (d) {
-      AUTH = a; ls('thpsm_auth', a); ls('thpsm_last', u); ls('thps_pw_' + u.toLowerCase(), hash(p)); ls(ckey('dash'), d);
-      start(d);
-    }).catch(function (e) {
-      if (isAuth(e)) return showLogin(errText(e));
-      var saved = ls('thps_c_' + u.toLowerCase() + '_dash');
-      if (saved && ls('thps_pw_' + u.toLowerCase()) === hash(p)) { AUTH = a; ls('thpsm_auth', a); setOnline(false); saved._offline = true; start(saved); toast('No network – working with the copy on this device.'); }
-      else showLogin(errText(e) === 'NOLINK' ? 'NOLINK' : 'Cannot reach the school database (' + errText(e) + '). Connect to the internet for the first sign-in.');
-    });
-  };
+/* ------------------------------------------------------------------ sign in: the same three sign-in pages as the Excel workbook */
+function loginBox(o) {
+  return '<div class="login"><div class="box lg2"><div class="lgL"><div class="logos"><img src="img/school.png" alt=""><img src="img/province.png" alt=""></div>' +
+    '<h2>' + esc(o.big) + '</h2><div class="muted">' + esc(o.small) + '</div><div class="muted" style="margin-top:8px"><b>TOM HOEY PRIMARY SCHOOL</b> (71 - 207)<br><i>In God, We Shall Prosper</i></div>' +
+    '<div class="sh" style="--c:' + o.c + ';margin-top:14px">' + esc(o.title) + '</div><div class="lgRules">' + o.rules.map(function (r) { return '<p>● <b>' + r[0] + '</b> – ' + r[1] + '</p>'; }).join('') + '</div></div>' +
+    '<div class="lgR"><h2 style="text-align:left">' + ico('key') + ' Sign in</h2><p class="muted" style="text-align:left;margin:4px 0 0">' + esc(o.lead) + '</p>' +
+    (o.msg && o.msg !== 'NOLINK' ? '<div class="note bad" style="margin-top:12px;text-align:left">' + esc(o.msg) + '</div>' : '') +
+    '<div class="form">' + (o.link ? '<label>School database link (ends with /exec) – needed once<input id="lUrl" value="' + esc(apiUrl()) + '" placeholder="https://script.google.com/macros/s/…/exec"></label>' : '') +
+    '<label>USERNAME<input id="lU" autocomplete="username" autocapitalize="none" value="' + esc(o.user || '') + '"></label>' +
+    '<label>PASSWORD<input id="lP" type="password" autocomplete="current-password"></label></div><p class="muted" style="font-size:12px;text-align:left">The password shows as dots.</p>' +
+    '<button class="btn pri" id="lGo" style="width:100%;justify-content:center;margin-top:8px">' + ico('key') + 'Sign in</button>' +
+    (o.back ? '<button class="btn" id="lBack" style="width:100%;justify-content:center;margin-top:8px">' + ico('house') + 'Back to Main Homepage</button>' : '') +
+    '<p class="muted" style="font-size:12px;margin-top:12px;text-align:left">' + o.foot + '</p></div></div></div>';
+}
+function bindLogin(go) {
   $('#lGo').onclick = go; $('#lP').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+  if ($('#lBack')) $('#lBack').onclick = function () { PAGE = 'home'; ls('thps_page', 'home'); go('home'); };
   setTimeout(function () { ($('#lU').value ? $('#lP') : $('#lU')).focus(); }, 50);
 }
+/* MAIN LOGIN (Excel sheet LOGIN) */
+function showLogin(msg) {
+  var needLink = !apiUrl() || msg === 'NOLINK';
+  $('#root').innerHTML = loginBox({ big: 'THPS SCHOOL MANAGER', small: 'Main School Database', c: C.home, title: 'MAIN SIGN IN', msg: msg, link: needLink, user: ls('thpsm_last'),
+    lead: 'Use your username and password to open the School Manager.',
+    rules: [['Administrator', 'every module, setup, Finance and reports'], ['Teachers', 'the teachers\' login: Admin Routines, Other Forms and Assessment (open Assessment with your own password)'],
+            ['Senior Teachers', 'your own Assessment username and password: Admin Routines, School Reports (print only) and Assessment']],
+    foot: 'The first sign-in needs the internet; after that the app opens without signal. THPS School Manager v' + VERSION });
+  bindLogin(function () {
+    var u = $('#lU').value.trim(), p = $('#lP').value;
+    if ($('#lUrl')) { var url = $('#lUrl').value.trim(); if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) return showLogin('Paste the database link from the Head Teacher. It starts with https://script.google.com/'); ls('thpsm_api', url); }
+    if (!u || !p) return showLogin('Type your username and password, then click Sign in.');
+    $('#lGo').disabled = true; $('#lGo').innerHTML = 'Signing in…';
+    call('apiMainLogin', u, p).then(function (r) {
+      MAIN = { t: r.t, role: r.role, name: r.name, user: u }; ls('thpsm_main', MAIN); ls('thpsm_last', u); ls('thps_mpw_' + u.toLowerCase(), hash(p)); ls('thps_main_' + u.toLowerCase(), MAIN);
+      if (r.role === 'Senior') { AUTH = { user: u, pass: p }; ls('thpsm_auth', AUTH); }   // Senior Teachers go straight into Assessment
+      ls(ckey('dash'), r.dash); PAGE = 'home'; ls('thps_page', 'home');
+      start(r.dash);
+    }).catch(function (e) {
+      var t = errText(e);
+      if (t !== 'No network') return showLogin(t === 'NOLINK' ? 'NOLINK' : t);
+      var last = ls('thps_main_' + u.toLowerCase());
+      if (last && ls('thps_mpw_' + u.toLowerCase()) === hash(p)) {
+        MAIN = last; ls('thpsm_main', MAIN); var saved = ls(ckey('dash'));
+        if (saved) { setOnline(false); saved._offline = true; start(saved); return toast('No network – working with the copy on this device.'); }
+      }
+      showLogin('Cannot reach the school database (' + t + '). Connect to the internet for the first sign-in.');
+    });
+  });
+}
 function hash(s) { var h = 5381; s = String(s) + '|thps'; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h); }
+/* ASSESSMENT LOGIN (ASM_LOGIN) and FINANCE LOGIN (FIN_LOGIN) - shown inside the app */
+function moduleLogin(kind, msg) {
+  var asm = kind === 'asm';
+  $$('.nav[data-p]').forEach(function (b) { b.classList.toggle('on', b.dataset.p === PAGE); });
+  var o = asm ? { big: 'ASSESSMENT', small: 'Student Assessment, Recording & Reporting System (SARRS)', c: C.asm, title: 'ASSESSMENT SIGN IN', user: AUTH ? AUTH.user : ls('thps_asm_last'),
+      lead: 'Use your username and password to open the Assessment.', rules: [['Teachers', 'your own username and password – your class'], ['Senior Teachers', 'your class and the classes you supervise'], ['Administrator', 'every class, setup, ID cards and report cards']],
+      foot: 'Marks entered online (THPS Marks Online) come into Excel with Download Online.' }
+    : { big: 'FINANCE', small: 'School Financial Management System (SFMS)', c: C.fin, title: 'FINANCE SIGN IN', user: ls('thps_fin_last'),
+      lead: 'Use your username and password to open the Finance.', rules: [['Administrator only', 'receipts, payments, cash book, returns and reports'], ['Finance login', 'use the Finance username and password (set on the Excel Finance SETUP)'], ['Printing', 'every report, receipt and invoice prints with the school heading']],
+      foot: 'Finance stays signed in until you log out of Finance or sign out.' };
+  o.msg = msg; o.back = true;
+  var h = loginBox(o).replace('<div class="login">', '<div class="login inapp">');
+  $('#page').innerHTML = h;
+  bindLogin(function () {
+    var u = $('#lU').value.trim(), p = $('#lP').value;
+    if (!u || !p) return moduleLogin(kind, 'Type your username and password, then click Sign in.');
+    $('#lGo').disabled = true; $('#lGo').innerHTML = 'Signing in…';
+    var pr = asm ? call('apiAsmLogin', u, p) : call('apiFinLogin', MA(), u, p);
+    pr.then(function (r) {
+      if (asm) { AUTH = { user: u, pass: p }; ls('thpsm_auth', AUTH); ls('thps_asm_last', u); ls('thps_apw_' + u.toLowerCase(), hash(p)); AV.d = null; pageAssess(); }
+      else { FIN = r.f; ls('thps_fin', FIN); ls('thps_fin_tok_last', FIN); ls('thps_fin_last', u); ls('thps_fpw', hash(u.toLowerCase() + '|' + p)); FV.F = null; pageFinance(); }
+    }).catch(function (e) {
+      var t = errText(e);
+      if (t === 'No network') {   // offline: the same password as last time opens the copy on this device
+        if (asm && ls('thps_apw_' + u.toLowerCase()) === hash(p)) { AUTH = { user: u, pass: p }; ls('thpsm_auth', AUTH); return pageAssess(); }
+        if (!asm && ls('thps_fpw') === hash(u.toLowerCase() + '|' + p) && ls('thps_fin_tok_last')) { FIN = ls('thps_fin_tok_last'); ls('thps_fin', FIN); return pageFinance(); }
+        return moduleLogin(kind, 'No network. Connect to the internet to sign in.');
+      }
+      if (isAuth(e)) return signOut(t);
+      moduleLogin(kind, t);
+    });
+  });
+}
+function moduleLogout(kind) {
+  if (kind === 'fin') { ls('thps_fin_tok_last', FIN); FIN = null; ls('thps_fin', null); FV.F = null; toast('Logged out of Finance'); }
+  else { AUTH = null; ls('thpsm_auth', null); AV.d = null; toast('Logged out of Assessment'); }
+  PAGE = 'home'; ls('thps_page', 'home'); render();
+}
 function signOut(msg) {
   if (OUTBOX.length && !msg && !confirm(OUTBOX.length + ' change(s) are still waiting for the network. They stay on this device. Sign out?')) return;
-  ls('thpsm_auth', null); AUTH = null; ME = null; showLogin(msg);
+  if (MAIN) ls('thps_main_' + String(MAIN.user || '').toLowerCase(), MAIN);
+  if (FIN) ls('thps_fin_tok_last', FIN);
+  ls('thpsm_main', null); ls('thpsm_auth', null); ls('thps_fin', null); MAIN = null; AUTH = null; FIN = null; ME = null; AV.d = null; FV.F = null; showLogin(msg);
 }
 
 /* ------------------------------------------------------------------ layout */
@@ -168,10 +242,11 @@ function start(d) {
     '<div class="sec">SYSTEM</div><button class="nav" id="bSync">' + ico('counterclockwise_arrows_button') + 'Sync now</button><button class="nav" id="bOut" style="--c:#b22222">' + ico('locked') + 'Sign out</button>' +
     '<div class="owner"><b>Mr Saun Aloksep</b><br>Head Teacher – System Owner<br>Tom Hoey Primary School<br>Mougulu, Middle Fly District, W/P<br>☎ 74621880<br>saun.aloksep115@gmail.com</div></aside>' +
     '<div class="main"><div class="top"><button class="burger" id="burger">☰</button><img src="img/school.png" alt="" style="height:38px"><div><h1>THPS SCHOOL MANAGER</h1><div class="sub">Western Provincial Administration · Division of Education, Middle Fly District</div></div>' +
-    '<span class="sp"></span><span class="pill" id="pill"></span><span class="pill">' + esc(ME.name || ME.user) + (ME.admin ? ' · Administrator' : ME.senior ? ' · Senior Teacher' : ' · Teacher') + '</span>' +
+    '<span class="sp"></span><span class="pill" id="pill"></span><span class="pill">' + esc(MAIN.name || MAIN.user) + ' · ' + roleText() + '</span>' +
     '<img src="img/province.png" alt="" style="height:38px"></div><div class="content" id="page"></div></div></div>';
   $$('.nav[data-p]').forEach(function (b) { b.onclick = function () { go(b.dataset.p); }; });
   $('#bOut').onclick = function () { signOut(); };
+  if (!window._modout) { window._modout = 1; document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-modout]'); if (b) moduleLogout(b.dataset.modout); }); }
   $('#bSync').onclick = function () { flush().then(function () { render(); toast(OUTBOX.length ? OUTBOX.length + ' change(s) still waiting' : 'Up to date'); }); };
   $('#burger').onclick = function () { $('#side').classList.toggle('open'); };
   setOnline(!d._offline);
@@ -180,7 +255,7 @@ function start(d) {
 }
 function go(p) {
   var m = MODS.filter(function (x) { return x.id === p; })[0];
-  if (m && !can(m.need)) return toast('Your login cannot open ' + m.label + '.', 1);
+  if (m && !can(m.need)) return toast('This part of the School Manager is not available for your login (' + roleText() + '). Ask the Administrator if you need it.', 1);
   if (m && m.href) { location.href = m.href; return; }
   PAGE = p; ls('thps_page', p); $('#side').classList.remove('open'); render();
 }
@@ -189,6 +264,9 @@ function render(dash) {
   var el = $('#page'); el.innerHTML = '<div class="muted">Loading…</div>';
   if (PAGE === 'home') return pageHome(dash);
   if (PAGE === 'students') return pageStudents();
+  if (PAGE === 'assess') return pageAssess();
+  if (PAGE === 'Finance') return pageFinance();
+  if (PAGE === 'Inventory') return pageInventory();
   if (SCHEMA[PAGE]) return pageTable(PAGE);
   PAGE = 'home'; pageHome(dash);
 }
@@ -223,52 +301,11 @@ function bars(labels, series, opt) {
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + g + '</svg><div class="legend">' + series.map(function (s) { return '<span><i style="background:' + s.color + '"></i>' + esc(s.name) + '</span>'; }).join('') + '</div>';
 }
 
-/* ------------------------------------------------------------------ HOME */
-function pageHome(d) {
-  var p = d ? Promise.resolve(d) : load('dash', 'apiDashboard', AUTH);
-  p.then(function (d) {
-    YEAR = d.year;
-    var fin = d.finance;
-    var k = [['STUDENTS (ACTIVE)', d.students, d.enrol.reduce(function (t, g) { return t + g.m; }, 0) + ' boys · ' + d.enrol.reduce(function (t, g) { return t + g.f; }, 0) + ' girls', C.stu, 'busts_in_silhouette'],
-             ['AVERAGE YEAR %', (Math.round(d.avgYear * 10) / 10) + '%', d.promote + ' promote · ' + d.repeat + ' repeat', C.asm, 'trophy'],
-             ['TEACHERS & CLASSES', d.teachers, d.classes + ' classes · year ' + d.year, C.tch, 'teacher']];
-    if (fin) k.push(['FINANCE BALANCE', money(fin.cash + fin.bank), 'Cash ' + money(fin.cash) + ' · Bank ' + money(fin.bank), C.fin, 'bank']);
-    else k.push(['SCHOOL REPORTS', d.reports, 'Saved this year', C.rpt, 'page_facing_up']);
-    var groups = [
-      ['STUDENTS & ASSESSMENT', C.asm, 'bar_chart', ['students', 'assess']],
-      ['TEACHERS & ADMINISTRATION', C.tch, 'teacher', ['Staff', 'Events', 'FormsLog']],
-      ['FINANCE, REPORTS & INFRASTRUCTURE', C.fin, 'money_bag', ['Finance', 'SchoolReports', 'Inventory']]];
-    var h = head('house', 'Dashboard', 'Overview', 'School year <b>' + d.year + '</b>' + (d._offline ? ' · <span style="color:#e0a400">offline copy</span>' : '') + ' · choose a module to begin');
-    h += '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
-    h += '<div class="cols"><div>' + groups.map(function (g) {
-      return '<div class="group" style="--c:' + g[1] + '"><h4>' + ico(g[2]) + g[0] + '</h4><div class="tiles">' + g[3].map(function (id) {
-        var m = MODS.filter(function (x) { return x.id === id; })[0], ok = can(m.need);
-        return '<button class="tile" data-go="' + id + '" style="--c:' + m.c + (ok ? '' : ';opacity:.45') + '"><span class="sq">' + ico(m.icon) + '</span><span><b>' + esc(m.label) + '</b><small>' + esc(ok ? m.sub : 'Not for your login') + '</small></span></button>';
-      }).join('') + '</div></div>';
-    }).join('');
-    h += '<div class="panel" style="--c:' + C.stu + '"><h3>' + ico('busts_in_silhouette') + 'Students by grade</h3>' +
-      bars(d.enrol.map(function (g) { return g.grade.replace('Grade ', 'G'); }), [{ name: 'Boys', color: '#2F80ED', data: d.enrol.map(function (g) { return g.m; }) }, { name: 'Girls', color: '#E46C0A', data: d.enrol.map(function (g) { return g.f; }) }], { stacked: true }) + '</div>';
-    h += '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('chart_increasing') + 'Average % by grade – AP1 and AP2</h3>' +
-      bars(d.gradeAvg.map(function (g) { return g.grade.replace('Grade ', 'G'); }), [{ name: 'AP1 %', color: '#2F80ED', data: d.gradeAvg.map(function (g) { return g.ap1; }) }, { name: 'AP2 %', color: '#2E8B57', data: d.gradeAvg.map(function (g) { return g.ap2; }) }], { max: 100 }) + '</div>';
-    h += '</div><div>';
-    h += '<div class="panel" style="--c:' + C.home + '"><h3>' + ico('clipboard') + 'Summary</h3><table class="tbl">' +
-      [['School year', d.year], ['Students active', d.students], ['Left / withdrawn', d.left], ['Classes', d.classes], ['Reports saved', d.reports], ['Waiting to upload', OUTBOX.length]].map(function (r) { return '<tr><td class="muted">' + r[0] + '</td><td><b>' + esc(r[1]) + '</b></td></tr>'; }).join('') + '</table></div>';
-    h += '<div class="panel" style="--c:' + C.adm + '"><h3>' + ico('spiral_calendar') + 'Coming up</h3>' + (d.events.length ? '<table class="tbl">' + d.events.map(function (e) { return '<tr><td>' + fmtDate(e.date) + '</td><td><b>' + esc(e.title) + '</b><br><small class="muted">' + esc(e.kind) + '</small></td></tr>'; }).join('') + '</table>' : '<p class="muted">No events listed. Add them in Admin Routines.</p>') + '</div>';
-    if (fin) h += '<div class="panel" style="--c:' + C.fin + '"><h3>' + ico('money_bag') + 'Receipts vs payments</h3>' +
-      bars(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'], [{ name: 'Receipts', color: '#2E8B57', data: fin.months.map(function (m) { return m.rin; }) }, { name: 'Payments', color: '#E46C0A', data: fin.months.map(function (m) { return m.rout; }) }], { k: true, h: 190 }) + '</div>';
-    h += '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('link') + 'Shortcuts</h3><div class="bar" style="margin:0">' +
-      '<button class="btn" data-go="assess">' + ico('pencil') + 'Enter marks</button><button class="btn" data-go="students">' + ico('plus') + 'Add student</button>' +
-      '<button class="btn" data-go="SchoolReports">' + ico('warning') + 'Write a report</button><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div></div>';
-    h += '</div></div>';
-    $('#page').innerHTML = h;
-    $$('[data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; });
-  }).catch(function (e) { $('#page').innerHTML = '<div class="note bad">Cannot open the dashboard: ' + esc(errText(e)) + '</div>'; });
-}
-
 /* ------------------------------------------------------------------ STUDENTS (same list the Excel database and the marks app use) */
 var SV = { cc: '', q: '', list: null };
-function pageStudents() {
-  load('students', 'apiStudents', AUTH).then(function (d) {
+function stuAuth() { return PAGE === 'assess' ? AUTH : MA(); }
+function pageStudents(pre) {
+  load(PAGE === 'assess' ? 'asm_students' : 'students', 'apiStudents', stuAuth()).then(function (d) {
     SV.list = d.students; var cls = d.classes || ME.classes;
     if (!SV.cc || cls.indexOf(SV.cc) < 0) SV.cc = 'ALL';
     var h = head('student', 'Students ' + d.year, 'Students', 'Every change reaches the class teacher at once, and goes into the Excel database with <b>Download Online</b>.' + (d._offline ? ' <span style="color:#e0a400">Offline copy – adding needs the internet.</span>' : ''));
@@ -278,7 +315,8 @@ function pageStudents() {
       '<div class="kpi" style="--c:' + C.home + '"><small>ADDED ONLINE</small><b>' + d.students.filter(function (s) { return s.pending; }).length + '</b><span>waiting for Excel</span>' + ico('outbox_tray') + '</div></div>';
     h += '<div class="bar"><select id="sCc"><option value="ALL">All my classes</option>' + cls.map(function (c) { return '<option' + (c === SV.cc ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
       '<input id="sQ" placeholder="Search name or ID" value="' + esc(SV.q) + '"><button class="btn pri" id="sAdd">' + ico('plus') + 'Add student</button><button class="btn" onclick="print()">' + ico('printer') + 'Print list</button></div><div id="sList"></div>';
-    $('#page').innerHTML = h;
+    $('#page').innerHTML = (pre ? pre.html : '') + h;
+    if (pre) pre.bind();
     $('#sCc').onchange = function () { SV.cc = this.value; drawStudents(); };
     $('#sQ').oninput = function () { SV.q = this.value; drawStudents(); };
     $('#sAdd').onclick = function () { stuForm({ id: '', sur: '', name: '', sex: '', cc: SV.cc !== 'ALL' ? SV.cc : cls[0], status: 'Active', dob: '' }, cls); };
@@ -307,7 +345,7 @@ function stuForm(s, cls) {
   $('#fS', m).onclick = function () {
     var st = { id: s.id, sur: $('#fSur', m).value.trim(), name: $('#fName', m).value.trim(), sex: $('#fSex', m).value, cc: $('#fCc', m).value, status: $('#fSt', m).value, dob: $('#fDob', m).value.trim() };
     this.disabled = true;
-    call('apiSaveStudent', AUTH, st).then(function (d) { setOnline(true); m.remove(); SV.list = d.students; ls(ckey('students'), { year: YEAR, students: d.students, classes: cls }); toast('Saved ' + d.id); drawStudents(cls); })
+    call('apiSaveStudent', stuAuth(), st).then(function (d) { setOnline(true); m.remove(); SV.list = d.students; ls(ckey(PAGE === 'assess' ? 'asm_students' : 'students'), { year: YEAR, students: d.students, classes: cls }); toast('Saved ' + d.id); drawStudents(cls); })
       .catch(function (e) { $('#fS', m).disabled = false; toast(errText(e) === 'No network' ? 'Adding students needs the internet. Try again when the network is back.' : 'Not saved: ' + errText(e), 1); });
   };
 }
@@ -316,7 +354,7 @@ function stuForm(s, cls) {
 var TV = {};
 function pageTable(name) {
   var S = SCHEMA[name], st = TV[name] = TV[name] || { q: '', year: YEAR, f: '' };
-  load('t_' + name + '_' + (S.year ? st.year : ''), 'apiTable', AUTH, name, S.year ? st.year : '').then(function (d) {
+  load('t_' + name + '_' + (S.year ? st.year : ''), 'apiTable', MA(), name, S.year ? st.year : '').then(function (d) {
     // show what is still waiting in the outbox
     var rows = d.rows.slice();
     OUTBOX.filter(function (o) { return o.name === name; }).forEach(function (o) {
@@ -325,7 +363,7 @@ function pageTable(name) {
     });
     st.rows = rows; st.canWrite = d.canWrite;
     var m = MODS.filter(function (x) { return x.id === name; })[0];
-    var h = head(S.icon, S.title + (S.year ? '  ' + st.year : ''), m.label, (d._offline ? '<span style="color:#e0a400">Offline copy – new entries are kept on this device and upload when the network returns.</span>' : (d.canWrite ? 'Add, change or delete entries. Everything saves to the school database.' : 'You can read this page.')));
+    var h = head(S.icon, S.title + (S.year ? '  ' + st.year : '') + (st.cat ? ' – ' + st.cat : ''), m.label, (d._offline ? '<span style="color:#e0a400">Offline copy – new entries are kept on this device and upload when the network returns.</span>' : (d.canWrite ? 'Add, change or delete entries. Everything saves to the school database.' : 'You can read this page.')));
     h += summaryFor(name, rows);
     h += '<div class="bar">' + (S.year ? '<select id="tY">' + opts([YEAR - 2, YEAR - 1, YEAR, YEAR + 1], st.year) + '</select>' : '') +
       '<input id="tQ" placeholder="Search" value="' + esc(st.q) + '">' + (d.canWrite ? '<button class="btn pri" id="tAdd">' + ico('plus') + 'Add</button>' : '') +
@@ -335,6 +373,8 @@ function pageTable(name) {
     $('#tQ').oninput = function () { st.q = this.value; drawTable(name); };
     if ($('#tAdd')) $('#tAdd').onclick = function () { rowForm(name, null); };
     $('#tCsv').onclick = function () { csv(name); };
+    $$('[data-cat]').forEach(function (k) { k.onclick = function () { st.cat = st.cat === k.dataset.cat ? '' : k.dataset.cat; pageTable(name); }; });
+    if ($('#catAll')) $('#catAll').onclick = function (e) { e.preventDefault(); st.cat = ''; pageTable(name); };
     drawTable(name);
   }).catch(function (e) { $('#page').innerHTML = '<div class="note bad">' + esc(errText(e)) + '</div>'; });
 }
@@ -350,6 +390,18 @@ function summaryFor(name, rows) {
       '<div class="panel noprint" style="--c:#2E8B57"><h3>' + ico('chart_increasing') + 'Receipts vs payments by month</h3>' + bars(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
         [{ name: 'Receipts', color: '#2E8B57', data: months.map(function (m) { return m.i; }) }, { name: 'Payments', color: '#E46C0A', data: months.map(function (m) { return m.o; }) }], { k: true, h: 180 }) + '</div>';
   }
+  if (name === 'Inventory') {
+    var CATS = [['Building', 'school', '#138D8D'], ['Furniture', 'building_construction', '#7A4E2D'], ['Stationery', 'pencil', '#E46C0A'],
+                ['Curriculum books', 'books', '#2F80ED'], ['Equipment', 'gear', '#5B4A9E'], ['Other', 'label', '#3A4250']];
+    var st = TV[name] || {};
+    return '<div class="kpis">' + CATS.map(function (c) {
+      var rs = rows.filter(function (r) { return (r.Category || 'Other') === c[0]; });
+      var qty = rs.reduce(function (t, r) { return t + (Number(r.Qty) || 0); }, 0);
+      var bad = rs.filter(function (r) { return /repair|low|out/i.test(r.Condition || ''); }).length;
+      return '<div class="kpi" data-cat="' + c[0] + '" style="--c:' + c[2] + ';cursor:pointer' + (st.cat === c[0] ? ';outline:2px solid ' + c[2] : '') + '"><small>' + c[0].toUpperCase() + '</small><b>' + rs.length + '</b><span>' +
+        qty + ' in stock' + (bad ? ' · <span style="color:#ffb3ad">' + bad + ' need attention</span>' : ' · all fine') + '</span>' + ico(c[1]) + '</div>';
+    }).join('') + '</div><p class="muted noprint" style="margin:-6px 0 12px">Click a card to show only that group' + (st.cat ? ' · showing <b>' + esc(st.cat) + '</b> – <a href="#" id="catAll" style="color:var(--gold)">show all</a>' : '') + '.</p>';
+  }
   var key = { SchoolReports: 'Type', Events: 'Kind', Inventory: 'Condition', Staff: 'Status', FormsLog: 'Form' }[name], cnt = {};
   rows.forEach(function (r) { var v = r[key] || '—'; cnt[v] = (cnt[v] || 0) + 1; });
   var top = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; }).slice(0, 3);
@@ -364,7 +416,7 @@ function cellOut(r, c) {
 }
 function drawTable(name) {
   var S = SCHEMA[name], st = TV[name], q = st.q.toLowerCase();
-  var rows = st.rows.filter(function (r) { return !q || S.cols.map(function (c) { return r[c[0]]; }).join(' ').toLowerCase().indexOf(q) >= 0; })
+  var rows = st.rows.filter(function (r) { return !(name === 'Inventory' && st.cat && (r.Category || 'Other') !== st.cat); }).filter(function (r) { return !q || S.cols.map(function (c) { return r[c[0]]; }).join(' ').toLowerCase().indexOf(q) >= 0; })
     .sort(function (a, b) { var x = String(a[S.sort] || ''), y = String(b[S.sort] || ''); return S.asc ? x.localeCompare(y) : y.localeCompare(x); });
   $('#tList').innerHTML = '<div class="wrap"><table class="tbl"><thead><tr>' + S.cols.map(function (c) { return '<th' + (c[1] === 'k' || c[1] === 'n' ? ' style="text-align:right"' : '') + '>' + esc(c[2] || c[0]) + '</th>'; }).join('') + '<th class="noprint"></th></tr></thead><tbody>' +
     rows.map(function (r) { return '<tr>' + S.cols.map(function (c) { return '<td' + (c[1] === 'k' || c[1] === 'n' ? ' class="n"' : '') + '>' + cellOut(r, c) + '</td>'; }).join('') +
@@ -375,6 +427,7 @@ function drawTable(name) {
 function rowForm(name, r) {
   var S = SCHEMA[name], st = TV[name], isNew = !r, ro = !st.canWrite;
   r = r ? JSON.parse(JSON.stringify(r)) : {};
+  if (isNew && name === 'Inventory' && st.cat) r.Category = st.cat;
   if (isNew) S.fields.forEach(function (f) { if (f[2] === 'date' && f[3]) r[f[0]] = (!S.year || String(st.year) === today().slice(0, 4)) ? today() : st.year + '-01-01'; });
   var m = document.createElement('div'); m.className = 'modal';
   m.innerHTML = '<div class="box"><h2>' + ico(S.icon) + (isNew ? 'New entry' : esc(r.Title || r.Item || r.Name || r.Payee || r.Form || 'Entry')) + '</h2><div class="form">' +
@@ -435,11 +488,696 @@ function csv(name) {
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out.join('\n')], { type: 'text/csv' })); a.download = 'THPS_' + name + '_' + (TV[name].year || '') + '.csv'; a.click();
 }
 
+/* ================================================================== v12: modules that work like the Excel sheets */
+var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+var MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function N(v) { var x = Number(v); return isNaN(x) ? 0 : x; }
+function amt(v, keep0) { v = Math.round(N(v) * 100) / 100; if (!v && !keep0) return ''; return v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function pct(a, b) { return b ? (Math.round(a / b * 1000) / 10) + '%' : '0%'; }
+function td(v, cls) { return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</td>'; }
+function tdn(v, keep0) { return '<td class="n' + (N(v) < 0 ? ' neg' : '') + '">' + amt(v, keep0) + '</td>'; }
+function kvTable(rows) { return '<table class="kv">' + rows.map(function (r) { return '<tr><td class="muted">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>'; }
+function subnav(views, cur, color, attr) {
+  return '<div class="subnav noprint" style="--c:' + color + '">' + views.map(function (v) { return '<button data-' + attr + '="' + v[0] + '"' + (v[0] === cur ? ' class="on"' : '') + '>' + ico(v[2]) + esc(v[1]) + '</button>'; }).join('') + '</div>';
+}
+function bindNav(attr, fn) { $$('[data-' + attr + ']').forEach(function (b) { b.onclick = function () { fn(b.getAttribute('data-' + attr)); }; }); }
+function lay(side, main) { return '<div class="lay"><aside class="noprint">' + side + '</aside><div>' + main + '</div></div>'; }
+function shortcuts(list, color) {
+  return '<div class="panel" style="--c:' + color + '"><h3>' + ico('link') + 'Shortcuts</h3>' + list.map(function (b) { return '<button class="btn" ' + b[0] + '>' + ico(b[1]) + esc(b[2]) + '</button>'; }).join('') + '</div>';
+}
+function ownerPanel() {
+  return '<div class="panel" style="--c:' + C.home + '"><h3>' + ico('teacher') + 'Owner information</h3><div style="font-size:13px"><b>Mr Saun Aloksep</b><br><span class="muted">Head Teacher – System Owner<br>Tom Hoey Primary School<br>Mougulu, Middle Fly District, W/P<br>☎ 74621880<br>saun.aloksep115@gmail.com</span></div></div>';
+}
+/* overlay the rows still waiting in the outbox on rows from the server */
+function withOutbox(name, rows, prep) {
+  rows = rows.slice();
+  OUTBOX.filter(function (o) { return o.name === name; }).forEach(function (o) {
+    rows = rows.filter(function (r) { return r.Key !== o.rec.Key; });
+    if (!o.del) { var r = JSON.parse(JSON.stringify(o.rec)); if (prep) prep(r); r._wait = true; rows.push(r); }
+  });
+  return rows;
+}
+function lineCsv(name, head, rows) {
+  var out = [head.join(',')].concat(rows.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }));
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out.join('\n')], { type: 'text/csv' })); a.download = name + '.csv'; a.click();
+}
+/* generic modal form. fields: [key, label, type|list, required, extra] */
+function formModal(title, icon, fields, r, opt) {
+  var m = document.createElement('div'); m.className = 'modal'; var ro = !opt.canWrite;
+  m.innerHTML = '<div class="box"><h2>' + ico(icon) + esc(title) + '</h2>' + (opt.note ? '<p class="muted" style="margin:-6px 0 10px">' + opt.note + '</p>' : '') + '<div class="form">' +
+    fields.map(function (f) {
+      var v = r[f[0]] == null ? '' : r[f[0]], dis = (ro || (f[4] && f[4].lock && r.Key)) ? ' disabled' : '', lab = esc(f[1]) + (f[3] ? ' *' : '');
+      var list = typeof f[2] === 'function' ? f[2](r) : f[2];
+      if (Array.isArray(list)) return '<label>' + lab + '<select data-f="' + f[0] + '"' + dis + '><option></option>' + opts(list.indexOf(String(v)) < 0 && v !== '' ? list.concat([String(v)]) : list, v) + '</select></label>';
+      if (list === 'area') return '<label class="wide">' + lab + '<textarea data-f="' + f[0] + '"' + dis + '>' + esc(v) + '</textarea></label>';
+      if (list === 'show') return '<label>' + lab + '<input value="' + esc(v) + '" disabled></label>';
+      return '<label>' + lab + '<input data-f="' + f[0] + '" type="' + (list === 'number' ? 'number" step="any' : list) + '" value="' + esc(String(v).slice(0, list === 'date' ? 10 : 999)) + '"' + dis + (f[4] && f[4].ph ? ' placeholder="' + esc(f[4].ph) + '"' : '') + '></label>';
+    }).join('') + '</div><div class="acts">' +
+    (r.Key && opt.canWrite && opt.onDelete ? '<button class="btn bad" id="mDel">' + ico('wastebasket') + 'Delete</button>' : '') + (opt.extra || '') +
+    '<button class="btn" id="mX">Close</button>' + (opt.canWrite ? '<button class="btn ok" id="mS">' + ico('floppy_disk') + 'Save</button>' : '') + '</div></div>';
+  document.body.appendChild(m);
+  var val = function () { var o = {}; $$('[data-f]', m).forEach(function (el) { o[el.dataset.f] = el.value; }); return o; };
+  $('#mX', m).onclick = function () { m.remove(); };
+  if (opt.onChange) $$('[data-f]', m).forEach(function (el) { el.onchange = function () { opt.onChange(el.dataset.f, val(), m); }; });
+  if ($('#mDel', m)) $('#mDel', m).onclick = function () { if (confirm('Delete this entry?')) { m.remove(); opt.onDelete(); } };
+  if ($('#mS', m)) $('#mS', m).onclick = function () {
+    var o = val(), miss = fields.filter(function (f) { return f[3] && !String(o[f[0]] || '').trim(); }).map(function (f) { return f[1]; });
+    if (miss.length) return toast('Please fill: ' + miss.join(', '), 1);
+    var err = opt.check ? opt.check(o) : ''; if (err) return toast(err, 1);
+    m.remove(); opt.onSave(o);
+  };
+  if (opt.after) opt.after(m);
+  return m;
+}
+/* save through the outbox, then redraw */
+function sendRow(name, rec, del, redraw) {
+  queueSave(name, rec);
+  redraw(true);
+  flush().then(function () {
+    var still = OUTBOX.some(function (o) { return o.name === name && o.rec.Key === rec.Key; });
+    toast(still ? 'Saved on this device – it uploads when the network returns' : (del ? 'Deleted' : 'Saved'));
+    redraw(false);
+  });
+}
+function newKey() { return 'W' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+
+/* ------------------------------------------------------------------ INFRASTRUCTURE / INVENTORY (INV_HOME, INV_INFRA, INV_STATIONERY, INV_CURRICULUM) */
+var INFRA_CAT = ['Classroom', 'Teacher House', 'Office / Admin', 'Library', 'Dormitory', 'Toilet / Ablution', 'Water Tank / Supply', 'Kitchen / Mess', 'Solar / Power', 'Furniture', 'Equipment', 'Land / Fence', 'Other'];
+var CONDITION = ['Good', 'Fair', 'Poor', 'Needs Repair', 'Condemned'];
+var FUNDING = ['TFF', 'PSF', 'Provincial Grant', 'District (DSIP)', 'LLG', 'Donor / NGO', 'Church Agency', 'Community', 'Other'];
+var STN_CAT = ['Exercise Books', 'Pens & Pencils', 'Paper & Cards', 'Chalk & Boards', 'Art & Craft', 'Office Supplies', 'Cleaning', 'Sports', 'Other'];
+var UNITS = ['Each', 'Box', 'Packet', 'Ream', 'Carton', 'Set', 'Dozen', 'Bottle', 'Roll'];
+var SUBJECTS = ['English', 'Mathematics', 'Science', 'Social Science', 'Making a Living (MAL)', 'Health & PE', 'Arts', 'CCVE', 'Language & Culture', 'All Subjects'];
+var GRADES = ['Prep', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+var RTYPES = ['Syllabus', 'Teacher Guide', 'Student Book', 'Reader', 'Reference Book', 'Chart / Poster', 'Kit / Equipment', 'Other'];
+function stnCalc(r) { if (!String(r.Item || '').trim()) return r; r.Balance = N(r.Opening) + N(r.Received) - N(r.Issued); r.Status = r.Balance <= 0 ? 'OUT' : r.Balance <= N(r.ReorderLevel) ? 'LOW' : 'OK'; r.StockValue = r.Balance * N(r.UnitCost); return r; }
+function curCalc(r) { r.Available = N(r.Received) - N(r.Issued) - N(r.Damaged); return r; }
+var INV = {
+  InvInfra: { v: 'infra', label: 'Infrastructure', title: 'INFRASTRUCTURE REGISTER', icon: 'school', code: 'AssetID', cat: 'Category', cats: INFRA_CAT,
+    fields: [['AssetID', 'Asset ID', 'text', 0, { lock: 1, ph: 'given automatically (INF-001)' }], ['Category', 'Category', INFRA_CAT, 1], ['Description', 'Description', 'text', 1], ['Location', 'Location', 'text'],
+             ['Material', 'Material / Type', 'text'], ['YearBuilt', 'Year built / acquired', 'number'], ['Qty', 'Qty', 'number'], ['Condition', 'Condition', CONDITION],
+             ['Value', 'Est. value (K)', 'number'], ['Funding', 'Funding source', FUNDING], ['LastInspected', 'Last inspected', 'date'], ['Remarks', 'Remarks', 'area']],
+    cols: [['AssetID', 'Asset ID'], ['Category', 'Category'], ['Description', 'Description'], ['Location', 'Location'], ['Material', 'Material/Type'], ['YearBuilt', 'Year Built/Acquired', 'c'],
+           ['Qty', 'Qty', 'n0'], ['Condition', 'Condition'], ['Value', 'Est. Value (K)', 'k'], ['Funding', 'Funding Source'], ['LastInspected', 'Last Inspected', 'd'], ['Remarks', 'Remarks']] },
+  InvStationery: { v: 'stat', label: 'Stationery', title: 'SCHOOL BASIC STATIONERIES REGISTER', icon: 'pencil', code: 'ItemCode', cat: 'Category', cats: STN_CAT, calc: stnCalc,
+    fields: [['ItemCode', 'Item code', 'text', 0, { lock: 1, ph: 'given automatically (STN-001)' }], ['Item', 'Item', 'text', 1], ['Category', 'Category', STN_CAT, 1], ['Unit', 'Unit', UNITS],
+             ['Opening', 'Opening stock', 'number'], ['Received', 'Received', 'number'], ['Issued', 'Issued', 'number'], ['ReorderLevel', 'Reorder level', 'number'],
+             ['UnitCost', 'Unit cost (K)', 'number'], ['Supplier', 'Supplier', 'text'], ['Remarks', 'Remarks', 'area']],
+    cols: [['ItemCode', 'Item Code'], ['Item', 'Item'], ['Category', 'Category'], ['Unit', 'Unit'], ['Opening', 'Opening Stock', 'n0'], ['Received', 'Received', 'n0'], ['Issued', 'Issued', 'n0'],
+           ['Balance', 'Balance', 'n0'], ['ReorderLevel', 'Reorder Level', 'n0'], ['Status', 'Stock Status', 'st'], ['UnitCost', 'Unit Cost (K)', 'k'], ['StockValue', 'Stock Value (K)', 'k'], ['Supplier', 'Supplier']] },
+  InvCurriculum: { v: 'curr', label: 'Curriculum', title: 'CURRICULUM MATERIALS REGISTER', icon: 'books', code: 'Code', cat: 'Subject', cats: SUBJECTS, calc: curCalc,
+    fields: [['Code', 'Code', 'text', 0, { lock: 1, ph: 'given automatically (CUR-001)' }], ['Title', 'Title', 'text', 1], ['Subject', 'Subject', SUBJECTS, 1], ['Grade', 'Grade', GRADES.concat(['All Grades'])],
+             ['ResourceType', 'Resource type', RTYPES], ['Received', 'Qty received', 'number'], ['Issued', 'Qty issued / in use', 'number'], ['Damaged', 'Damaged / lost', 'number'],
+             ['Condition', 'Condition', CONDITION], ['Source', 'Source / supplier', 'text'], ['Remarks', 'Remarks', 'area']],
+    cols: [['Code', 'Code'], ['Title', 'Title'], ['Subject', 'Subject'], ['Grade', 'Grade'], ['ResourceType', 'Resource Type'], ['Received', 'Qty Received', 'n0'], ['Issued', 'Qty Issued/In Use', 'n0'],
+           ['Damaged', 'Damaged/Lost', 'n0'], ['Available', 'Available', 'n0'], ['Condition', 'Condition'], ['Source', 'Source/Supplier'], ['Remarks', 'Remarks']] }
+};
+var IV = { year: null, view: 'home', q: '', cat: '', d: null };
+function invName(v) { return Object.keys(INV).filter(function (k) { return INV[k].v === v; })[0]; }
+function pageInventory(keep) {
+  if (!IV.year) IV.year = YEAR;
+  var draw = function (d) {
+    IV.d = d;
+    Object.keys(INV).forEach(function (n) { d[n] = withOutbox(n, d[n] || [], null).filter(function (r) { return Number(r.Year) === IV.year; }).map(function (r) { return INV[n].calc ? INV[n].calc(r) : r; }); });
+    var views = [['home', 'Summary', 'building_construction']].concat(Object.keys(INV).map(function (n) { return [INV[n].v, INV[n].label, INV[n].icon]; }));
+    var h = head('building_construction', 'School Infrastructure / Inventory  ' + IV.year, 'Infrastructure', 'Three registers – Infrastructure, School Basic Stationeries and Curriculum – the same as the Excel sheets. ' +
+      (d._offline ? '<span style="color:#e0a400">Offline copy – new entries upload when the network returns.</span>' : d.canWrite ? 'Each record is saved to the school database and goes into Excel with <b>Download Online</b>.' : 'You can read these registers.'));
+    h += subnav(views, IV.view, C.inv, 'iv');
+    h += IV.view === 'home' ? invHome(d) : invReg(invName(IV.view), d);
+    $('#page').innerHTML = h;
+    bindNav('iv', function (v) { IV.view = v; IV.q = ''; IV.cat = ''; pageInventory(true); });
+    bindNav('ivgo', function (v) { IV.view = v; IV.q = ''; IV.cat = ''; pageInventory(true); });
+    if ($('#ivY')) $('#ivY').onchange = function () { IV.year = Number(this.value); pageInventory(); };
+    if (IV.view !== 'home') bindReg(invName(IV.view), d);
+  };
+  if (keep && IV.d && IV.d.year === IV.year) return draw(JSON.parse(JSON.stringify(IV.d0)));
+  load('inv_' + IV.year, 'apiInventory', MA(), IV.year).then(function (d) { IV.d0 = JSON.parse(JSON.stringify(d)); draw(d); })
+    .catch(function (e) { $('#page').innerHTML = '<div class="note bad">' + esc(errText(e)) + '</div>'; });
+}
+function yearSel(id, years, cur) { var ys = (years || []).slice(); [YEAR - 1, YEAR, YEAR + 1, cur].forEach(function (y) { if (ys.indexOf(y) < 0) ys.push(y); }); ys.sort(); return '<select id="' + id + '">' + opts(ys, cur) + '</select>'; }
+function invHome(d) {
+  var I = d.InvInfra, S = d.InvStationery, Cu = d.InvCurriculum;
+  var qty = I.reduce(function (t, r) { return t + N(r.Qty); }, 0), bad = I.filter(function (r) { return /^(poor|needs repair|condemned)$/i.test(r.Condition || ''); }).reduce(function (t, r) { return t + N(r.Qty); }, 0);
+  var val = I.reduce(function (t, r) { return t + N(r.Value); }, 0), lines = S.filter(function (r) { return String(r.Item || '').trim(); }).length;
+  var lowout = S.filter(function (r) { return r.Status === 'LOW' || r.Status === 'OUT'; }).length, avail = Cu.reduce(function (t, r) { return t + N(r.Available); }, 0);
+  var k = [['INFRASTRUCTURE ITEMS (QTY)', qty, I.length + ' records', '#138D8D', 'school'], ['NEEDING REPAIR', bad, 'Poor, needs repair or condemned', '#C0392B', 'warning'],
+           ['ASSET VALUE', money(val), 'Estimated value', '#2E8B57', 'coin'], ['STATIONERY LINES', lines, S.reduce(function (t, r) { return t + N(r.Balance); }, 0) + ' items in balance', '#E46C0A', 'pencil'],
+           ['LOW / OUT OF STOCK', lowout, 'Reorder these lines', '#B8860B', 'triangular_flag'], ['CURRICULUM BOOKS AVAILABLE', avail, Cu.length + ' titles', '#2F80ED', 'books']];
+  var main = '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
+  // Infrastructure by category and condition
+  var tq = [0, 0, 0, 0, 0, 0];
+  main += '<div class="panel" style="--c:#138D8D"><div class="sh">Infrastructure by category and condition</div><div class="wrap" style="max-height:none"><table class="tbl x"><thead><tr><th>Category</th><th style="text-align:right">Qty</th><th style="text-align:right">Good</th><th style="text-align:right">Fair</th><th style="text-align:right">Poor</th><th style="text-align:right">Needs repair</th><th style="text-align:right">Value (K)</th></tr></thead><tbody>' +
+    INFRA_CAT.map(function (c) {
+      var rs = I.filter(function (r) { return r.Category === c; }), q = function (cond) { return rs.filter(function (r) { return !cond || String(r.Condition).toLowerCase() === cond.toLowerCase(); }).reduce(function (t, r) { return t + N(r.Qty); }, 0); };
+      var v = [q(''), q('Good'), q('Fair'), q('Poor'), q('Needs Repair'), rs.reduce(function (t, r) { return t + N(r.Value); }, 0)];
+      v.forEach(function (x, i) { tq[i] += x; });
+      return '<tr><td>' + esc(c) + '</td>' + v.slice(0, 5).map(function (x) { return '<td class="n">' + (x || '') + '</td>'; }).join('') + tdn(v[5]) + '</tr>';
+    }).join('') + '<tr class="tot"><td>Total</td>' + tq.slice(0, 5).map(function (x) { return '<td class="n">' + x + '</td>'; }).join('') + tdn(tq[5], 1) + '</tr></tbody></table></div></div>';
+  // stationery by category
+  var ts = [0, 0, 0, 0];
+  main += '<div class="panel" style="--c:#E46C0A"><div class="sh">School basic stationeries by category</div><table class="tbl x"><thead><tr><th>Category</th><th style="text-align:right">Lines</th><th style="text-align:right">Balance qty</th><th style="text-align:right">Low / out</th><th style="text-align:right">Value (K)</th></tr></thead><tbody>' +
+    STN_CAT.map(function (c) {
+      var rs = S.filter(function (r) { return r.Category === c && String(r.Item || '').trim(); });
+      var v = [rs.length, rs.reduce(function (t, r) { return t + N(r.Balance); }, 0), rs.filter(function (r) { return r.Status === 'LOW' || r.Status === 'OUT'; }).length, rs.reduce(function (t, r) { return t + N(r.StockValue); }, 0)];
+      v.forEach(function (x, i) { ts[i] += x; });
+      return '<tr><td>' + esc(c) + '</td><td class="n">' + (v[0] || '') + '</td><td class="n">' + (v[1] || '') + '</td><td class="n">' + (v[2] || '') + '</td>' + tdn(v[3]) + '</tr>';
+    }).join('') + '<tr class="tot"><td>Total</td><td class="n">' + ts[0] + '</td><td class="n">' + ts[1] + '</td><td class="n">' + ts[2] + '</td>' + tdn(ts[3], 1) + '</tr></tbody></table></div>';
+  // curriculum by subject
+  var tc = [0, 0, 0, 0, 0];
+  main += '<div class="panel" style="--c:#2F80ED"><div class="sh">Curriculum materials by subject</div><table class="tbl x"><thead><tr><th>Subject</th><th style="text-align:right">Titles</th><th style="text-align:right">Received</th><th style="text-align:right">Issued</th><th style="text-align:right">Damaged / lost</th><th style="text-align:right">Available</th></tr></thead><tbody>' +
+    SUBJECTS.map(function (c) {
+      var rs = Cu.filter(function (r) { return r.Subject === c; }), sm = function (f) { return rs.reduce(function (t, r) { return t + N(r[f]); }, 0); };
+      var v = [rs.length, sm('Received'), sm('Issued'), sm('Damaged'), sm('Available')];
+      v.forEach(function (x, i) { tc[i] += x; });
+      return '<tr><td>' + esc(c) + '</td>' + v.map(function (x) { return '<td class="n">' + (x || '') + '</td>'; }).join('') + '</tr>';
+    }).join('') + '<tr class="tot"><td>Total</td>' + tc.map(function (x) { return '<td class="n">' + x + '</td>'; }).join('') + '</tr></tbody></table></div>';
+  var byCond = CONDITION.slice(0, 4).map(function (c, i) { return { name: c, color: ['#2E8B57', '#E9B949', '#E46C0A', '#C0392B'][i], data: INFRA_CAT.map(function (cat) { return I.filter(function (r) { return r.Category === cat && String(r.Condition).toLowerCase() === c.toLowerCase(); }).reduce(function (t, r) { return t + N(r.Qty); }, 0); }) }; });
+  main += '<div class="panel noprint" style="--c:#138D8D"><h3>' + ico('bar_chart') + 'Infrastructure condition by category</h3>' + bars(INFRA_CAT.map(function (c) { return c.split(/[ /]/)[0].slice(0, 6); }), byCond, { stacked: true }) + '</div>';
+  var side = '<div class="panel" style="--c:' + C.inv + '"><h3>' + ico('clipboard') + 'Summary</h3>' + kvTable([['Year shown', yearSel('ivY', d.years, IV.year)], ['Items needing repair', bad], ['Stationery low / out', lowout], ['Curriculum available', avail], ['Asset value', money(val)]]) + '</div>' +
+    shortcuts([['data-ivgo="infra"', 'school', 'Infrastructure register'], ['data-ivgo="stat"', 'pencil', 'Stationery register'], ['data-ivgo="curr"', 'books', 'Curriculum register'], ['onclick="print()"', 'printer', 'Print summary']], C.inv) + ownerPanel();
+  return lay(side, main);
+}
+function invCell(r, c) {
+  var v = r[c[0]];
+  if (c[2] === 'k') return tdn(v);
+  if (c[2] === 'n0') return '<td class="n">' + (v === '' || v == null ? '' : N(v)) + '</td>';
+  if (c[2] === 'd') return td(fmtDate(v));
+  if (c[2] === 'c') return td(esc(v), 'c');
+  if (c[2] === 'st') return td(v ? '<span class="st ' + String(v).toLowerCase() + '">' + v + '</span>' : '');
+  return td(esc(v));
+}
+function invReg(name, d) {
+  var S = INV[name], rows = d[name];
+  var shown = rows.filter(function (r) { return (!IV.cat || r[S.cat] === IV.cat) && (!IV.q || S.cols.map(function (c) { return r[c[0]]; }).join(' ').toLowerCase().indexOf(IV.q.toLowerCase()) >= 0); })
+    .sort(function (a, b) { return String(a[S.code] || 'ZZZ' + a.Key).localeCompare(String(b[S.code] || 'ZZZ' + b.Key), undefined, { numeric: true }); });
+  var main = '<div class="bar">' + yearSel('ivY', d.years, IV.year) + '<select id="ivC"><option value="">All ' + (S.cat === 'Subject' ? 'subjects' : 'categories') + '</option>' + opts(S.cats, IV.cat) + '</select><input id="ivQ" placeholder="Search" value="' + esc(IV.q) + '">' +
+    (d.canWrite ? '<button class="btn pri" id="ivAdd">' + ico('plus') + 'Add record</button>' : '') + '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button><button class="btn" id="ivCsv">' + ico('outbox_tray') + 'Export (CSV)</button></div>';
+  main += '<div class="sh" style="--c:' + C.inv + '">' + S.title + '  –  ' + IV.year + (IV.cat ? '  –  ' + esc(IV.cat) : '') + '</div><div class="wrap"><table class="tbl x"><thead><tr><th>No</th>' +
+    S.cols.map(function (c) { return '<th' + (/^(k|n0)$/.test(c[2] || '') ? ' style="text-align:right"' : '') + '>' + esc(c[1]) + '</th>'; }).join('') + '<th class="noprint"></th></tr></thead><tbody>' +
+    shown.map(function (r, i) { return '<tr><td>' + (i + 1) + '</td>' + S.cols.map(function (c) { return invCell(r, c); }).join('') + '<td class="noprint" style="white-space:nowrap">' + (r._wait ? '<span class="tag new">waiting</span> ' : r.Pending === 'Y' ? '<span class="tag new" title="Waiting for Download Online in Excel">online</span> ' : '') +
+      '<button class="btn" data-ik="' + esc(r.Key) + '">' + ico(d.canWrite ? 'pencil' : 'magnifying_glass_tilted_left') + (d.canWrite ? 'Open' : 'View') + '</button></td></tr>'; }).join('') +
+    (shown.length ? '' : '<tr><td colspan="' + (S.cols.length + 2) + '" class="muted">No records yet' + (d.canWrite ? ' – click Add record.' : '.') + '</td></tr>') + '</tbody></table></div><p class="muted">' + shown.length + ' records</p>';
+  var side, sum = function (f) { return rows.reduce(function (t, r) { return t + N(r[f]); }, 0); };
+  if (name === 'InvInfra') side = kvTable([['Records', rows.length], ['Total qty', sum('Qty')], ['Needing repair', rows.filter(function (r) { return /^(poor|needs repair|condemned)$/i.test(r.Condition || ''); }).length + ' records'], ['Asset value', money(sum('Value'))]]);
+  else if (name === 'InvStationery') side = kvTable([['Lines', rows.length], ['Balance qty', sum('Balance')], ['LOW', rows.filter(function (r) { return r.Status === 'LOW'; }).length], ['OUT', rows.filter(function (r) { return r.Status === 'OUT'; }).length], ['Stock value', money(sum('StockValue'))]]) +
+    '<p class="muted" style="font-size:12px;margin:8px 0 0">Balance = Opening + Received − Issued. Status: OUT when balance is 0, LOW at or below the reorder level.</p>';
+  else side = kvTable([['Titles', rows.length], ['Received', sum('Received')], ['Issued / in use', sum('Issued')], ['Damaged / lost', sum('Damaged')], ['Available', sum('Available')]]) +
+    '<p class="muted" style="font-size:12px;margin:8px 0 0">Available = Received − Issued − Damaged / lost.</p>';
+  side = '<div class="panel" style="--c:' + C.inv + '"><h3>' + ico('clipboard') + 'Summary ' + IV.year + '</h3>' + side + '</div>' +
+    '<div class="panel" style="--c:' + C.inv + '"><h3>' + ico('label') + 'By ' + (S.cat === 'Subject' ? 'subject' : 'category') + '</h3>' + kvTable(S.cats.map(function (c) { var n = rows.filter(function (r) { return r[S.cat] === c; }).length; return [n ? '<a href="#" data-icat="' + esc(c) + '" style="color:var(--gold)">' + esc(c) + '</a>' : esc(c), n || '–']; })) + '</div>' +
+    shortcuts([['data-ivgo="home"', 'building_construction', 'Inventory summary']].concat(Object.keys(INV).filter(function (n) { return n !== name; }).map(function (n) { return ['data-ivgo="' + INV[n].v + '"', INV[n].icon, INV[n].label + ' register']; })), C.inv);
+  return lay(side, main);
+}
+function bindReg(name, d) {
+  var S = INV[name];
+  $('#ivC').onchange = function () { IV.cat = this.value; pageInventory(true); };
+  $('#ivQ').oninput = function () { IV.q = this.value; var p = this.selectionStart; pageInventory(true); var q = $('#ivQ'); q.focus(); q.setSelectionRange(p, p); };
+  $$('[data-icat]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); IV.cat = a.dataset.icat; pageInventory(true); }; });
+  $('#ivCsv').onclick = function () { lineCsv('THPS_' + name + '_' + IV.year, ['Year'].concat(S.cols.map(function (c) { return c[1]; })), d[name].map(function (r) { return [r.Year].concat(S.cols.map(function (c) { return r[c[0]]; })); })); };
+  var open = function (r) {
+    var isNew = !r; r = r ? JSON.parse(JSON.stringify(r)) : { Year: IV.year };
+    if (isNew && IV.cat) r[S.cat] = IV.cat;
+    var redraw = function (first) { pageInventory(!!first); };
+    formModal(isNew ? 'New ' + S.label.toLowerCase() + ' record – ' + IV.year : (r[S.code] || '') + '  ' + (r.Description || r.Item || r.Title || ''), S.icon, S.fields, r, {
+      canWrite: d.canWrite,
+      note: name === 'InvStationery' ? 'Balance, stock status and stock value are worked out like the Excel sheet.' : name === 'InvCurriculum' ? 'Available is worked out: received − issued − damaged / lost.' : '',
+      onDelete: function () { sendRow(name, { Key: r.Key, _del: true }, true, redraw); },
+      onSave: function (o) {
+        var rec = { Key: r.Key || newKey(), Ms: Date.now(), Year: IV.year };
+        Object.keys(o).forEach(function (k) { rec[k] = o[k]; });
+        if (r[S.code]) rec[S.code] = r[S.code];
+        sendRow(name, rec, false, redraw);
+      }
+    });
+  };
+  if ($('#ivAdd')) $('#ivAdd').onclick = function () { open(null); };
+  $$('[data-ik]').forEach(function (b) { b.onclick = function () { open(d[name].filter(function (r) { return r.Key === b.dataset.ik; })[0]); }; });
+}
+
+/* ------------------------------------------------------------------ FINANCE (SFMS: FIN_HOMEPAGE, CCB entry, returns, registers, setup) */
+var FV = { year: null, view: 'home', month: null, q: '', quarter: 1, mf: 0, psf: '' };
+var TRANSFERS = ['Withdrawal (Bank to Cash)', 'Deposit (Cash to Bank)', 'Bank Charges'];
+/* the same calculation engine as the Excel modCalc */
+function finAgg(F) {
+  var A = { M: [], In: {}, Out: {}, rows: [], open: { c: F.openCash, b: F.openBank }, bud: F.budget };
+  for (var m = 0; m < 12; m++) A.M.push([0, 0, 0, 0, 0, 0]);
+  F.rows.forEach(function (o) {
+    var mo = N(o.Month); if (mo < 1 || mo > 12) return;
+    var g = A.M[mo - 1]; g[0] += N(o.CashRec); g[1] += N(o.CashPay); g[2] += N(o.Withdraw); g[3] += N(o.BankRec); g[4] += N(o.BankPay); g[5] += N(o.Deposit);
+    var k = String(o.Area || '').trim().toLowerCase() + '|' + mo;
+    if (N(o.CashRec) || N(o.BankRec)) { A.In[k] = A.In[k] || [0, 0]; A.In[k][0] += N(o.CashRec); A.In[k][1] += N(o.BankRec); }
+    if (N(o.CashPay) || N(o.BankPay)) { A.Out[k] = A.Out[k] || [0, 0]; A.Out[k][0] += N(o.CashPay); A.Out[k][1] += N(o.BankPay); }
+  });
+  A.rows = F.rows.slice().sort(function (x, y) { return (N(x.Month) * 100 + N(x.Day)) - (N(y.Month) * 100 + N(y.Day)) || (N(x.ID) || 1e9) - (N(y.ID) || 1e9) || String(x.Key).localeCompare(String(y.Key)); });
+  A.msum = function (f, m1, m2) { var s = 0; for (var m = Math.max(1, m1); m <= Math.min(12, m2); m++) s += A.M[m - 1][f]; return s; };
+  var pair = function (D, area, m1, m2) { var s = 0; area = String(area || '').trim().toLowerCase(); if (!area) return 0; for (var m = Math.max(1, m1); m <= Math.min(12, m2); m++) { var a = D[area + '|' + m]; if (a) s += a[0] + a[1]; } return s; };
+  A.areaIn = function (a, m1, m2) { return pair(A.In, a, m1, m2); };
+  A.areaOut = function (a, m1, m2) { return pair(A.Out, a, m1, m2); };
+  A.incAct = function (t, m1, m2) { return t === 1 ? (m1 <= 1 && m2 >= 1 ? A.open.c + A.open.b : 0) : A.areaIn(A.bud.rev[t - 1].name, m1, m2); };
+  A.itemAct = function (p, i, m1, m2) { var it = A.bud.parts[p - 1].items[i - 1]; return it && it.name ? A.areaOut(it.name, m1, m2) : 0; };
+  A.partAct = function (p, m1, m2) { if (p > 6) return 0; var s = 0; for (var i = 1; i <= 5; i++) s += A.itemAct(p, i, m1, m2); return s; };
+  A.bankChg = function (m1, m2) { return A.areaOut('Bank Charges', m1, m2); };
+  A.totRec = function (m1, m2) { return A.msum(0, m1, m2) + A.msum(3, m1, m2); };
+  A.totPay = function (m1, m2) { return A.msum(1, m1, m2) + A.msum(4, m1, m2); };
+  A.totIncome = function (m1, m2) { return A.totRec(m1, m2) + A.incAct(1, m1, m2); };
+  A.otherInc = function (m1, m2) { var s = A.totRec(m1, m2); for (var t = 2; t <= 6; t++) s -= A.incAct(t, m1, m2); return Math.abs(s) < 0.005 ? 0 : s; };
+  A.otherExp = function (m1, m2) { var s = A.totPay(m1, m2) - A.bankChg(m1, m2); for (var p = 1; p <= 6; p++) s -= A.partAct(p, m1, m2); return Math.abs(s) < 0.005 ? 0 : s; };
+  A.cashEnd = function (m) { var s = A.open.c; for (var k = 1; k <= Math.min(12, m); k++) { var g = A.M[k - 1]; s += g[0] - g[1] + g[2] - g[5]; } return s; };
+  A.bankEnd = function (m) { var s = A.open.b; for (var k = 1; k <= Math.min(12, m); k++) { var g = A.M[k - 1]; s += g[3] - g[4] - g[2] + g[5]; } return s; };
+  A.expBudget = function () { var s = 0; for (var p = 0; p < 6; p++) s += A.bud.parts[p].amt; return s; };
+  return A;
+}
+function ccbPrep(r) {   // a row still in the outbox: work out its columns like the server will
+  var d = String(r.Date || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (d) { r.Year = Number(d[1]); r.Month = Number(d[2]); r.Day = Number(d[3]); }
+  var ft = r.FolioType, a = String(r.Area || '').toLowerCase(), c = N(r.CashAmt), b = N(r.BankAmt);
+  ['CashRec', 'CashPay', 'Withdraw', 'BankRec', 'BankPay', 'Deposit'].forEach(function (f) { r[f] = ''; });
+  if (ft === 'I#') { r.CashRec = c; r.BankRec = b; } else if (ft === 'E#') { r.CashPay = c; r.BankPay = b; }
+  else if (a === TRANSFERS[0].toLowerCase()) r.Withdraw = c + b; else if (a === TRANSFERS[1].toLowerCase()) r.Deposit = c + b; else { r.CashPay = c; r.BankPay = b; }
+}
+function finLists(F) {
+  var inc = F.budget.rev.slice(1).map(function (r) { return r.name; }), exp = [];
+  F.budget.parts.slice(0, 6).forEach(function (p) { p.items.forEach(function (i) { if (i.name) exp.push(i.name); }); });
+  var used = {}; F.rows.forEach(function (o) { if (o.Area) used[o.Area] = o.FolioType; });
+  Object.keys(used).forEach(function (a) { if (inc.indexOf(a) < 0 && exp.indexOf(a) < 0 && TRANSFERS.indexOf(a) < 0) (used[a] === 'I#' ? inc : exp).push(a); });
+  return { 'I#': inc, 'E#': exp, 'T#': TRANSFERS };
+}
+function pageFinance(keep) {
+  if (!FIN) return moduleLogin('fin');
+  var draw = function (F) {
+    FV.F = F;
+    F.rows = withOutbox('CCB', F.rows0 || F.rows, ccbPrep).filter(function (r) { return Number(r.Year) === FV.year; });
+    var A = finAgg(F);
+    if (!FV.month) FV.month = (FV.year === new Date().getFullYear()) ? new Date().getMonth() + 1 : 12;
+    var views = [['home', 'Dashboard', 'money_bag'], ['ccb', 'CCB Entry', 'ledger'], ['monthly', 'Monthly Summary', 'calendar'], ['quarter', 'Quarterly Report', 'bar_chart'],
+                 ['annual', 'Annual Report', 'page_facing_up'], ['receipts', 'Receipts', 'receipt'], ['invoices', 'Invoices', 'inbox_tray'], ['psf', 'Parent Support Fee', 'busts_in_silhouette'], ['setup', 'Setup & Budget', 'gear']];
+    var h = head('money_bag', 'School Finance (SFMS)  ' + FV.year, 'Finance', 'Combined Cash Book based on the School SLIP – the same entries, balances and reports as the Excel Finance. ' +
+      (F._offline ? '<span style="color:#e0a400">Offline copy – new entries upload when the network returns.</span>' : 'New entries go into Excel with <b>Download Online</b>.'));
+    h += subnav(views, FV.view, C.fin, 'fv');
+    var fn = { home: finHome, ccb: finCCB, monthly: finMonthly, quarter: finQuarter, annual: finAnnual, receipts: finReceipts, invoices: finInvoices, psf: finPSF, setup: finSetup }[FV.view] || finHome;
+    h += fn(F, A);
+    $('#page').innerHTML = h;
+    bindNav('fv', function (v) { FV.view = v; FV.q = ''; pageFinance(true); });
+    bindNav('fvgo', function (v) { FV.view = v; FV.q = ''; pageFinance(true); });
+    if ($('#fY')) $('#fY').onchange = function () { FV.year = Number(this.value); FV.month = null; pageFinance(); };
+    if ($('#fM')) $('#fM').onchange = function () { FV.month = Number(this.value); pageFinance(true); };
+    if ($('#fMF')) $('#fMF').onchange = function () { FV.mf = Number(this.value); pageFinance(true); };
+    if ($('#fQt')) $('#fQt').onchange = function () { FV.quarter = Number(this.value); pageFinance(true); };
+    if ($('#fPs')) $('#fPs').onchange = function () { FV.psf = this.value; pageFinance(true); };
+    if ($('#fQ')) $('#fQ').oninput = function () { FV.q = this.value; var p = this.selectionStart; pageFinance(true); var q = $('#fQ'); q.focus(); q.setSelectionRange(p, p); };
+    if ($('#fAdd')) $('#fAdd').onclick = function () { ccbForm(F, null); };
+    $$('[data-ck]').forEach(function (b) { b.onclick = function () { ccbForm(F, F.rows.filter(function (r) { return r.Key === b.dataset.ck; })[0]); }; });
+    if ($('#fSave')) $('#fSave').onclick = function () { saveSetup(F); };
+    if ($('#fCsv')) $('#fCsv').onclick = function () { ccbCsv(A); };
+  };
+  if (keep && FV.F && FV.F.year === FV.year) return draw(FV.F);
+  load('fin_' + (FV.year || ''), 'apiFinance', FA(), FV.year || '').then(function (F) {
+    FV.year = F.year; F.rows0 = F.rows.slice(); draw(F);
+  }).catch(function (e) { if (isFinAuth(e)) return moduleLogin('fin', errText(e)); $('#page').innerHTML = '<div class="note bad">' + esc(errText(e)) + '</div>'; });
+}
+function finSide(F, A, extra) {
+  var m = FV.month || 12;
+  return '<div class="panel" style="--c:' + C.fin + '"><h3>' + ico('clipboard') + 'Summary</h3>' + kvTable([['Finance year', yearSel('fY', F.years, FV.year)], ['This month in (' + MON3[m - 1] + ')', money(A.totRec(m, m))], ['This month out', money(A.totPay(m, m))],
+    ['Cash on hand', money(A.cashEnd(12))], ['Cash at bank', money(A.bankEnd(12))], ['Cash + bank now', money(A.cashEnd(12) + A.bankEnd(12))], ['Waiting for Excel', (F.pending || 0) + OUTBOX.filter(function (o) { return o.name === 'CCB'; }).length]]) + '</div>' +
+    (extra || '') +
+    shortcuts([['data-fvgo="ccb"', 'ledger', 'CCB entry sheet'], ['data-fvgo="monthly"', 'calendar', 'Monthly summary'], ['data-fvgo="receipts"', 'receipt', 'Receipts register'], ['data-fvgo="setup"', 'gear', 'Setup & budget'], ['onclick="print()"', 'printer', 'Print this page'], ['data-modout="fin"', 'locked', 'Log out of Finance']], C.fin);
+}
+function finHome(F, A) {
+  var k = [['TOTAL REVENUE (INCL. BBF)', money(A.totIncome(1, 12)), 'Receipts + brought forward', '#2E8B57', 'inbox_tray'], ['TOTAL EXPENDITURE', money(A.totPay(1, 12)), 'All payments this year', '#C0392B', 'outbox_tray'],
+           ['CASH ON HAND', money(A.cashEnd(12)), 'Closing cash, December', '#E9B949', 'coin'], ['CASH AT BANK', money(A.bankEnd(12)), 'Closing bank, December', '#2F80ED', 'bank']];
+  var main = '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
+  var groups = [['SETUP & ENTRIES', [['ccb', 'ledger', 'CCB Entry Sheet', 'Combined cash book – add, change, delete'], ['setup', 'gear', 'Setup & Budget', 'School, bank, opening balances, SLIP budget']]],
+                ['RETURNS & REPORTS', [['monthly', 'calendar', 'Monthly Summary', 'Monthly financial return'], ['quarter', 'bar_chart', 'Quarterly Report', 'Termly financial report'], ['annual', 'page_facing_up', 'Annual Report', 'School annual financial report']]],
+                ['CASH BOOKS & REGISTERS', [['ccb', 'ledger', 'Annual Cash Book', 'Cash & bank with running balances'], ['receipts', 'receipt', 'Receipts', 'Summary of receipts (RCT)'], ['invoices', 'inbox_tray', 'Invoices', 'Summary of invoices (INV)'], ['psf', 'busts_in_silhouette', 'Parent Support Fee', 'Paid, charged and balance']]]];
+  main += groups.map(function (g) { return '<div class="group" style="--c:' + C.fin + '"><h4>' + ico('money_bag') + g[0] + '</h4><div class="tiles">' + g[1].map(function (t) { return '<button class="tile" data-fvgo="' + t[0] + '" style="--c:' + C.fin + '"><span class="sq">' + ico(t[1]) + '</span><span><b>' + esc(t[2]) + '</b><small>' + esc(t[3]) + '</small></span></button>'; }).join('') + '</div></div>'; }).join('');
+  var rin = [], rout = [], cb = [], bb = [];
+  for (var m = 1; m <= 12; m++) { rin.push(A.totRec(m, m)); rout.push(A.totPay(m, m)); cb.push(A.cashEnd(m)); bb.push(A.bankEnd(m)); }
+  main += '<div class="panel" style="--c:#2E8B57"><h3>' + ico('chart_increasing') + 'Receipts vs payments by month</h3>' + bars(MON3.map(function (x) { return x.charAt(0); }), [{ name: 'Receipts', color: '#2E8B57', data: rin }, { name: 'Payments', color: '#E46C0A', data: rout }], { k: true, h: 190 }) + '</div>';
+  main += '<div class="panel" style="--c:#2F80ED"><h3>' + ico('bank') + 'Cash and bank balance by month</h3>' + bars(MON3.map(function (x) { return x.charAt(0); }), [{ name: 'Cash', color: '#E9B949', data: cb.map(function (v) { return Math.max(0, v); }) }, { name: 'Bank', color: '#2F80ED', data: bb.map(function (v) { return Math.max(0, v); }) }], { k: true, h: 190 }) + '</div>';
+  return lay(finSide(F, A) + ownerPanel(), main);
+}
+function finCCB(F, A) {
+  var cash = A.open.c, bank = A.open.b, q = FV.q.toLowerCase();
+  var body = '<tr class="bbf"><td colspan="11">Previous Balance (BBF)  ===></td>' + tdn(cash, 1) + '<td colspan="3"></td>' + tdn(bank, 1) + '<td></td>' + tdn(cash + bank, 1) + '<td class="noprint"></td></tr>', n = 0, tot = [0, 0, 0, 0, 0, 0];
+  A.rows.forEach(function (o) {
+    cash += N(o.CashRec) - N(o.CashPay) + N(o.Withdraw) - N(o.Deposit); bank += N(o.BankRec) - N(o.BankPay) - N(o.Withdraw) + N(o.Deposit);
+    if (FV.mf && N(o.Month) !== FV.mf) return;
+    if (q && [o.Payee, o.Details, o.RefNo, o.Area, o.ReceiptNo, o.InvoiceNo, o.FolioType + o.FolioNo].join(' ').toLowerCase().indexOf(q) < 0) return;
+    n++; ['CashRec', 'CashPay', 'Withdraw', 'BankRec', 'BankPay', 'Deposit'].forEach(function (f, i) { tot[i] += N(o[f]); });
+    body += '<tr>' + td(MONTHS[N(o.Month) - 1] || '') + td(N(o.Day), 'c') + td(esc(o.Payee)) + td(esc(o.Details)) + td(esc(o.FolioType), 'c') + td(o._wait ? '…' : esc(o.FolioNo), 'c') + td(esc(o.RefNo || (o.FolioType === 'I#' ? o.ReceiptNo : o.FolioType === 'E#' ? o.InvoiceNo : '') || '')) + td(esc(o.Area)) +
+      tdn(o.CashRec) + tdn(o.CashPay) + tdn(o.Withdraw) + tdn(cash, 1) + tdn(o.BankRec) + tdn(o.BankPay) + tdn(o.Deposit) + tdn(bank, 1) + td(esc(o.Recon), 'c') + tdn(cash + bank, 1) +
+      '<td class="noprint" style="white-space:nowrap">' + (o._wait ? '<span class="tag new">waiting</span> ' : o.Pending === 'Y' ? '<span class="tag new" title="Waiting for Download Online in Excel">online</span> ' : '') + '<button class="btn" data-ck="' + esc(o.Key) + '">' + ico('pencil') + 'Open</button></td></tr>';
+  });
+  body += '<tr class="tot"><td colspan="8">Totals' + (FV.mf ? ' – ' + MONTHS[FV.mf - 1] : '') + '</td>' + tdn(tot[0], 1) + tdn(tot[1], 1) + tdn(tot[2], 1) + '<td></td>' + tdn(tot[3], 1) + tdn(tot[4], 1) + tdn(tot[5], 1) + '<td colspan="4"></td></tr>';
+  var main = '<div class="kpis"><div class="kpi" style="--c:#E9B949"><small>CASH ON HAND</small><b>' + money(A.cashEnd(12)) + '</b><span>after every entry of ' + FV.year + '</span>' + ico('coin') + '</div>' +
+    '<div class="kpi" style="--c:#2F80ED"><small>CASH IN BANK</small><b>' + money(A.bankEnd(12)) + '</b><span>after every entry of ' + FV.year + '</span>' + ico('bank') + '</div>' +
+    '<div class="kpi" style="--c:#2E8B57"><small>TOTAL</small><b>' + money(A.cashEnd(12) + A.bankEnd(12)) + '</b><span>cash on hand + cash in bank</span>' + ico('money_bag') + '</div></div>';
+  main += '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<select id="fMF"><option value="0">All months</option>' + MONTHS.map(function (m, i) { return '<option value="' + (i + 1) + '"' + (FV.mf === i + 1 ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select>' +
+    '<input id="fQ" placeholder="Search payee, details, ref, area" value="' + esc(FV.q) + '"><button class="btn pri" id="fAdd">' + ico('plus') + 'New entry</button><button class="btn" onclick="print()">' + ico('printer') + 'Print cash book</button><button class="btn" id="fCsv">' + ico('outbox_tray') + 'Export (CSV)</button></div>';
+  main += '<div class="sh" style="--c:' + C.fin + '">CCB ENTRY SHEET – COMBINE CASH BOOK – ' + FV.year + '</div><div class="wrap" style="max-height:70vh"><table class="tbl x"><thead><tr><th colspan="8" class="grp" style="--c:#3A4250">Cash Journal</th><th colspan="4" class="grp" style="--c:#B8860B">Cash on hand Transaction</th><th colspan="4" class="grp" style="--c:#2F80ED">Cash in Bank Transaction</th><th></th><th class="grp" style="--c:#2E8B57">Total</th><th class="noprint"></th></tr><tr>' +
+    ['Month', 'Date', 'Service Provider or Payee', 'Details or Description', 'Folio', 'No.', 'Reference Number', 'Area of Expenditure, Type of Income, Transfers & Bank Charge', 'Receipts', 'Payments', 'Withdraw (Bank to Cash)', 'Cash Balance', 'Receipts', 'Payments', 'Deposit (Cash to Bank)', 'Bank Balance', 'Bank Recon. (Y/N)', 'Running Balance']
+      .map(function (x, i) { return '<th' + (i >= 8 && i !== 16 ? ' style="text-align:right"' : '') + '>' + x + '</th>'; }).join('') + '<th class="noprint"></th></tr></thead><tbody>' + body + '</tbody></table></div><p class="muted">' + n + ' entries shown · Folio I# = income, E# = expenditure, T# = transfer / bank charge.</p>';
+  return main;
+}
+function ccbCsv(A) {
+  var cash = A.open.c, bank = A.open.b;
+  lineCsv('THPS_CCB_' + FV.year, ['Month', 'Date', 'Payee', 'Details', 'Folio', 'No', 'RefNo', 'Area', 'CashReceipts', 'CashPayments', 'Withdraw', 'CashBalance', 'BankReceipts', 'BankPayments', 'Deposit', 'BankBalance', 'Recon', 'ReceiptNo', 'InvoiceNo'],
+    A.rows.map(function (o) { cash += N(o.CashRec) - N(o.CashPay) + N(o.Withdraw) - N(o.Deposit); bank += N(o.BankRec) - N(o.BankPay) - N(o.Withdraw) + N(o.Deposit);
+      return [MONTHS[N(o.Month) - 1], o.Day, o.Payee, o.Details, o.FolioType, o.FolioNo, o.RefNo, o.Area, o.CashRec, o.CashPay, o.Withdraw, cash.toFixed(2), o.BankRec, o.BankPay, o.Deposit, bank.toFixed(2), o.Recon, o.ReceiptNo, o.InvoiceNo]; }));
+}
+function ccbForm(F, r) {
+  var L = finLists(F), isNew = !r;
+  r = r ? JSON.parse(JSON.stringify(r)) : { FolioType: 'I#', Date: (String(FV.year) === today().slice(0, 4) ? today() : FV.year + '-' + String(FV.mf || 1).padStart(2, '0') + '-01'), Recon: 'N' };
+  if (!isNew) { r.CashAmt = N(r.CashRec) + N(r.CashPay); r.BankAmt = N(r.BankRec) + N(r.BankPay); if (N(r.Withdraw) || N(r.Deposit)) r.BankAmt = N(r.Withdraw) + N(r.Deposit); if (!r.Date && r.Month) r.Date = FV.year + '-' + String(r.Month).padStart(2, '0') + '-' + String(r.Day || 1).padStart(2, '0'); }
+  var fields = [['Date', 'Date', 'date', 1], ['FolioType', 'Entry type (Folio)', ['I#', 'E#', 'T#'], 1], ['Payee', 'Service provider or payee', 'text', 1], ['Details', 'Details or description', 'text'],
+                ['Area', 'Area of expenditure / type of income', function (x) { return L[x.FolioType] || L['E#']; }, 1], ['RefNo', 'Reference number', 'text'], ['Recon', 'Bank recon. (Y/N)', ['Y', 'N']],
+                ['CashAmt', 'Cash amount (K)', 'number'], ['BankAmt', 'Bank amount (K)', 'number']];
+  if (!isNew) fields.splice(2, 0, ['FolioShow', 'Folio no. / receipt / invoice', 'show']);
+  r.FolioShow = r.FolioType + (r.FolioNo || '') + (r.ReceiptNo ? '  ·  ' + r.ReceiptNo : '') + (r.InvoiceNo ? '  ·  ' + r.InvoiceNo : '');
+  var redraw = function (first) { pageFinance(!!first); };
+  formModal(isNew ? 'CCB entry form – new entry ' + FV.year : 'CCB entry ' + (r.FolioType || '') + (r.FolioNo || ''), 'ledger', fields, r, {
+    canWrite: true,
+    note: 'I# income: the amount goes to Receipts. E# expenditure: to Payments. T# Withdrawal moves bank to cash; Deposit moves cash to bank; Bank Charges are a bank payment. Folio, receipt and invoice numbers are given when saved.',
+    onChange: function (f, o, m) {
+      if (f !== 'FolioType') return;
+      var sel = $('[data-f="Area"]', m); sel.innerHTML = '<option></option>' + opts(L[o.FolioType] || [], '');
+    },
+    check: function (o) {
+      if (String(o.Date).slice(0, 4) !== String(FV.year)) return 'The date must be in ' + FV.year + ' (change the finance year to enter another year).';
+      if (!N(o.CashAmt) && !N(o.BankAmt)) return 'Type a Cash and/or Bank amount.';
+      if (N(o.CashAmt) < 0 || N(o.BankAmt) < 0) return 'Amounts must be positive.';
+      return '';
+    },
+    onDelete: function () { sendRow('CCB', { Key: r.Key, _del: true }, true, redraw); },
+    onSave: function (o) {
+      var rec = { Key: r.Key || newKey(), Ms: Date.now() };
+      ['Date', 'FolioType', 'Payee', 'Details', 'Area', 'RefNo', 'Recon', 'CashAmt', 'BankAmt'].forEach(function (k) { rec[k] = o[k]; });
+      if (r.FolioType === o.FolioType) { rec.FolioNo = r.FolioNo; rec.ReceiptNo = r.ReceiptNo; rec.InvoiceNo = r.InvoiceNo; }
+      if (r.ID) rec.ID = r.ID;
+      sendRow('CCB', rec, false, redraw);
+    }
+  });
+}
+function finSchool(F, title, period, extra) {
+  var I = F.info;
+  return '<div class="panel" style="--c:' + C.fin + ';text-align:center"><b>DEPARTMENT OF EDUCATION</b><br><span class="muted">Supervision and Management Reform</span><br><b>' + esc(I.SCHOOL_NAME) + '</b><br><b>' + title + '</b></div>' +
+    '<div class="sh" style="--c:' + C.fin + '">SECTION 1: SCHOOL DETAILS</div><table class="tbl x"><tr><td class="muted">Province</td><td>' + esc(I.PROVINCE) + '</td><td class="muted">' + period[0] + '</td><td>' + esc(period[1]) + '</td></tr>' +
+    '<tr><td class="muted">School name</td><td>' + esc(I.SCHOOL_NAME) + '</td><td class="muted">Report no.</td><td>' + esc(period[2]) + '</td></tr><tr><td class="muted">School code</td><td>' + esc(I.SCHOOL_CODE || '') + '</td><td class="muted">Sector / District</td><td>' + esc(I.SECTOR + ' · ' + I.DISTRICT) + '</td></tr>' + (extra || '') + '</table>';
+}
+function revTable(A, m1, m2, label) {
+  var rows = '', T = [0, 0, 0, 0];
+  for (var t = 1; t <= 6; t++) {
+    var pr = A.incAct(t, 1, m1 - 1), th = A.incAct(t, m1, m2), bud = A.bud.rev[t - 1].amt;
+    T[0] += pr; T[1] += th; T[2] += pr + th; T[3] += bud;
+    rows += '<tr>' + td(t) + td(esc(A.bud.rev[t - 1].name)) + tdn(pr, 1) + tdn(th, 1) + tdn(pr + th, 1) + tdn(bud, 1) + td(pct(pr + th, bud), 'n') + '</tr>';
+  }
+  var op = A.otherInc(1, m1 - 1), ot = A.otherInc(m1, m2); T[0] += op; T[1] += ot; T[2] += op + ot;
+  rows += '<tr>' + td(7) + td('Other income (area not in budget)') + tdn(op, 1) + tdn(ot, 1) + tdn(op + ot, 1) + '<td></td><td></td></tr>';
+  rows += '<tr class="tot"><td></td><td>Total</td>' + tdn(T[0], 1) + tdn(T[1], 1) + tdn(T[2], 1) + tdn(T[3], 1) + td(pct(T[2], T[3]), 'n') + '</tr>';
+  return '<div class="sh" style="--c:' + C.fin + '">SECTION 2: REVENUE</div><table class="tbl x"><thead><tr><th>Item #</th><th>Type of Income</th><th style="text-align:right">Progressive</th><th style="text-align:right">' + label + '</th><th style="text-align:right">Total Receipts</th><th style="text-align:right">Annual Revenue</th><th style="text-align:right">Total Receipt (%)</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<table class="tbl x" style="margin:6px 0 14px"><tr class="bbf"><td>' + MON3[m2 - 1] + ':</td><td>Bank Balance  =></td>' + tdn(A.bankEnd(m2), 1) + '<td>Cash Balance  =></td>' + tdn(A.cashEnd(m2), 1) + '<td>Total  =></td>' + tdn(A.bankEnd(m2) + A.cashEnd(m2), 1) + '</tr></table>';
+}
+function expTable(A, m1, m2, label, items) {
+  var rows = '', T = [0, 0, 0, 0];
+  for (var p = 1; p <= 6; p++) {
+    var P = A.bud.parts[p - 1], pr = A.partAct(p, 1, m1 - 1), th = A.partAct(p, m1, m2);
+    T[0] += pr; T[1] += th; T[2] += pr + th; T[3] += P.amt;
+    rows += '<tr' + (items ? ' style="font-weight:700"' : '') + '>' + td(p) + td(esc(P.name)) + tdn(pr, 1) + tdn(th, 1) + tdn(pr + th, 1) + tdn(P.amt, 1) + td(pct(pr + th, P.amt), 'n') + '</tr>';
+    if (items) P.items.forEach(function (it, i) { if (!it.name) return; var a = A.itemAct(p, i + 1, 1, m1 - 1), b = A.itemAct(p, i + 1, m1, m2); rows += '<tr class="muted">' + td('') + td('&nbsp;&nbsp;' + esc(it.name)) + tdn(a) + tdn(b) + tdn(a + b) + tdn(it.amt) + td(pct(a + b, it.amt), 'n') + '</tr>'; });
+  }
+  rows += '<tr class="tot"><td></td><td>Total</td>' + tdn(T[0], 1) + tdn(T[1], 1) + tdn(T[2], 1) + tdn(T[3], 1) + td(pct(T[2], T[3]), 'n') + '</tr>';
+  var bc = A.bankChg(1, m2), oe = A.otherExp(1, m2);
+  return '<div class="sh" style="--c:' + C.fin + '">SECTION 3: EXPENDITURE</div><table class="tbl x"><thead><tr><th>Item #</th><th>Budget Item</th><th style="text-align:right">Progressive</th><th style="text-align:right">' + label + '</th><th style="text-align:right">Total Expense</th><th style="text-align:right">Annual Budget</th><th style="text-align:right">Total Spent (%)</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    ((bc || oe) ? '<p class="muted" style="font-size:12px">Not in the budget items (to date): bank charges ' + money(bc) + ' · other / unallocated payments ' + money(oe) + '.</p>' : '');
+}
+function signBlock() { return '<p class="muted" style="font-size:12px;margin-top:14px">NB: Budget items must conform to the approved School Learning Improvement Plan (SLIP).</p><div class="sig"><div>Head Teacher</div><div>BOM Chairman</div><div>BOM Treasurer</div></div>'; }
+function finMonthly(F, A) {
+  var m = FV.month;
+  var main = '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<select id="fM">' + MONTHS.map(function (x, i) { return '<option value="' + (i + 1) + '"' + (m === i + 1 ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select><button class="btn" onclick="print()">' + ico('printer') + 'Print return</button></div>';
+  main += finSchool(F, 'MONTHLY FINANCIAL RETURN – BUDGET vs ACTUAL', ['Month', MONTHS[m - 1] + ' ' + FV.year, m]) + revTable(A, m, m, 'This Month') + expTable(A, m, m, 'This Month', false) + signBlock();
+  return lay(finSide(F, A), main);
+}
+function finQuarter(F, A) {
+  var q = FV.quarter, m1 = q * 3 - 2, m2 = q * 3, nm = ['First', 'Second', 'Third', 'Fourth'][q - 1];
+  var main = '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<select id="fQt">' + [1, 2, 3, 4].map(function (i) { return '<option value="' + i + '"' + (q === i ? ' selected' : '') + '>' + ['First', 'Second', 'Third', 'Fourth'][i - 1] + ' (' + MON3[i * 3 - 3] + ' – ' + MON3[i * 3 - 1] + ')</option>'; }).join('') + '</select><button class="btn" onclick="print()">' + ico('printer') + 'Print report</button></div>';
+  main += finSchool(F, 'QUARTERLY [TERMLY] FINANCIAL REPORT', ['Quarter / term', nm + ' (' + MON3[m1 - 1] + ' - ' + MON3[m2 - 1] + ')', q]) + revTable(A, m1, m2, nm + ' Quarter') + expTable(A, m1, m2, nm + ' Quarter', true);
+  var ob = A.bankEnd(m1 - 1), oc = A.cashEnd(m1 - 1), inc = A.totRec(m1, m2), exp = A.totPay(m1, m2);
+  main += '<div class="sh" style="--c:' + C.fin + '">SECTION 4: SUMMARY OF CASH POSITION</div><table class="tbl x">' +
+    [['CCB cash at bank – beginning of quarter', ob], ['Add: CCB cash at school (cash on hand) – beginning', oc], ['Add: summary of income for the quarter', inc], ['Less: summary of expenditure for the quarter', -exp],
+     ['Closing balance (bank ' + money(A.bankEnd(m2)) + ' + cash ' + money(A.cashEnd(m2)) + ')', ob + oc + inc - exp]].map(function (r, i) { return '<tr' + (i === 4 ? ' class="tot"' : '') + '>' + td(r[0]) + tdn(r[1], 1) + '</tr>'; }).join('') + '</table>' + signBlock();
+  return lay(finSide(F, A), main);
+}
+function finAnnual(F, A) {
+  var Q = [[1, 3], [4, 6], [7, 9], [10, 12]], ri = '', T = [0, 0, 0, 0, 0, 0];
+  for (var t = 1; t <= 6; t++) {
+    var v = Q.map(function (q) { return A.incAct(t, q[0], q[1]); }), b = A.bud.rev[t - 1].amt, s = v.reduce(function (x, y) { return x + y; }, 0);
+    T[0] += b; v.forEach(function (x, i) { T[i + 1] += x; }); T[5] += s;
+    ri += '<tr>' + td(t) + td(esc(A.bud.rev[t - 1].name)) + tdn(b, 1) + v.map(function (x) { return tdn(x, 1); }).join('') + tdn(s, 1) + '</tr>';
+  }
+  var ov = Q.map(function (q) { return A.otherInc(q[0], q[1]); }), os = ov.reduce(function (x, y) { return x + y; }, 0); ov.forEach(function (x, i) { T[i + 1] += x; }); T[5] += os;
+  ri += '<tr>' + td(7) + td('Other income (area not in budget)') + '<td></td>' + ov.map(function (x) { return tdn(x, 1); }).join('') + tdn(os, 1) + '</tr><tr class="tot"><td></td><td>Total Income</td>' + T.map(function (x) { return tdn(x, 1); }).join('') + '</tr>';
+  var re = '', E = [0, 0, 0, 0, 0, 0];
+  for (var p = 1; p <= 8; p++) {
+    var nm, bud, vv;
+    if (p <= 6) { nm = A.bud.parts[p - 1].name; bud = A.bud.parts[p - 1].amt; vv = Q.map(function (q) { return A.partAct(p, q[0], q[1]); }); }
+    else if (p === 7) { nm = 'BANK CHARGES'; bud = 0; vv = Q.map(function (q) { return A.bankChg(q[0], q[1]); }); }
+    else { nm = 'OTHER / UNALLOCATED'; bud = 0; vv = Q.map(function (q) { return A.otherExp(q[0], q[1]); }); }
+    var ss = vv.reduce(function (x, y) { return x + y; }, 0); E[0] += bud; vv.forEach(function (x, i) { E[i + 1] += x; }); E[5] += ss;
+    re += '<tr>' + td(p) + td(esc(nm)) + tdn(bud, 1) + vv.map(function (x) { return tdn(x, 1); }).join('') + tdn(ss, 1) + '</tr>';
+  }
+  re += '<tr class="tot"><td></td><td>Total Expenditure</td>' + E.map(function (x) { return tdn(x, 1); }).join('') + '</tr>';
+  var hd = function (a) { return '<thead><tr><th>#</th><th>' + a + '</th><th style="text-align:right">Yearly Budget</th><th style="text-align:right">1st Quarter</th><th style="text-align:right">2nd Quarter</th><th style="text-align:right">3rd Quarter</th><th style="text-align:right">4th Quarter</th><th style="text-align:right">Total</th></tr></thead>'; };
+  var main = '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<button class="btn" onclick="print()">' + ico('printer') + 'Print annual report</button></div>' + finSchool(F, 'SCHOOL ANNUAL FINANCIAL REPORT', ['Year', FV.year, FV.year]) +
+    '<div class="sh" style="--c:' + C.fin + '">2: BUDGET – PART A: INCOME</div><table class="tbl x">' + hd('Type of Income') + '<tbody>' + ri + '</tbody></table>' +
+    '<div class="sh" style="--c:' + C.fin + ';margin-top:12px">PART B: EXPENDITURE</div><table class="tbl x">' + hd('Focus Area of Expenses') + '<tbody>' + re + '</tbody></table>' +
+    '<div class="cols" style="margin-top:12px"><div><div class="sh" style="--c:' + C.fin + '">PART C: INCOME SUMMARY</div><table class="tbl x">' + [['Amount budgeted', T[0]], ['Amount received (incl. BBF)', T[5]], ['Amount yet to be received', T[0] - T[5]]].map(function (r) { return '<tr>' + td(r[0]) + tdn(r[1], 1) + '</tr>'; }).join('') + '</table></div>' +
+    '<div><div class="sh" style="--c:' + C.fin + '">PART D: EXPENDITURE SUMMARY</div><table class="tbl x">' + [['Amount budgeted', E[0]], ['Amount spent', E[5]], ['Balance of budget', E[0] - E[5]], ['Closing cash + bank (31 Dec)', A.cashEnd(12) + A.bankEnd(12)]].map(function (r) { return '<tr>' + td(r[0]) + tdn(r[1], 1) + '</tr>'; }).join('') + '</table></div></div>' + signBlock();
+  return lay(finSide(F, A), main);
+}
+function finList(F, A, kind) {
+  var q = FV.q.toLowerCase(), rows = A.rows.filter(function (o) {
+    if (FV.mf && N(o.Month) !== FV.mf) return false;
+    if (kind === 'receipts' && !(o.ReceiptNo && (N(o.CashRec) + N(o.BankRec)) > 0)) return false;
+    if (kind === 'invoices' && !o.InvoiceNo) return false;
+    return !q || [o.Payee, o.Details, o.Area, o.ReceiptNo, o.InvoiceNo].join(' ').toLowerCase().indexOf(q) >= 0;
+  });
+  var tot = 0, body = rows.map(function (o) {
+    var dt = FV.year + '-' + String(o.Month).padStart(2, '0') + '-' + String(o.Day).padStart(2, '0');
+    if (kind === 'receipts') { var v = N(o.CashRec) + N(o.BankRec); tot += v; return '<tr>' + td(FV.year) + td(esc(o.ReceiptNo)) + td(MONTHS[N(o.Month) - 1]) + td(fmtDate(dt)) + td(esc(o.Payee)) + td(esc(o.Area + (o.Details ? ' – ' + o.Details : ''))) + tdn(v, 1) + '</tr>'; }
+    var c = N(o.CashPay), b = N(o.BankPay); tot += c + b;
+    return '<tr>' + td(FV.year) + td(esc(o.InvoiceNo)) + td(MONTHS[N(o.Month) - 1]) + td(fmtDate(dt)) + td(esc(o.Payee)) + td(esc(o.Area + (o.Details ? ' – ' + o.Details : ''))) + tdn(c) + tdn(b) + tdn(c + b, 1) + '</tr>';
+  }).join('');
+  var hd = kind === 'receipts' ? ['Year', 'Receipt No', 'Month', 'Date', 'Received From', 'Particulars', 'Amount (K)'] : ['Year', 'Invoice No', 'Month', 'Date', 'Customer / Payee', 'Description', 'Cash Payment (K)', 'Bank Payment (K)', 'Total (K)'];
+  var main = '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<select id="fMF"><option value="0">All months</option>' + MONTHS.map(function (m, i) { return '<option value="' + (i + 1) + '"' + (FV.mf === i + 1 ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select><input id="fQ" placeholder="Search" value="' + esc(FV.q) + '"><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>' +
+    '<div class="sh" style="--c:' + C.fin + '">SUMMARY OF ' + (kind === 'receipts' ? 'RECEIPTS' : 'INVOICES') + ' – ' + FV.year + '  ·  TOTAL ' + (kind === 'receipts' ? 'RECEIPTS' : 'INVOICES') + ': ' + money(tot) + '</div><div class="wrap"><table class="tbl x"><thead><tr>' + hd.map(function (x, i) { return '<th' + (i >= 6 ? ' style="text-align:right"' : '') + '>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' + (body || '<tr><td colspan="9" class="muted">Nothing for this period.</td></tr>') + '</tbody></table></div><p class="muted">' + rows.length + ' ' + kind + '</p>';
+  return lay(finSide(F, A), main);
+}
+function finReceipts(F, A) { return finList(F, A, 'receipts'); }
+function finInvoices(F, A) { return finList(F, A, 'invoices'); }
+function finPSF(F, A) {
+  var fee = N(F.info.FEE_RATE), q = FV.q.toLowerCase(), paid = 0, n = 0;
+  var rows = A.rows.filter(function (o) { return /parent support fee/i.test(o.Area || '') && (N(o.CashRec) + N(o.BankRec)) > 0; });
+  var body = rows.map(function (o) {
+    var v = N(o.CashRec) + N(o.BankRec), st = fee && v >= fee ? 'Completed' : 'Incomplete';
+    if (FV.mf && N(o.Month) !== FV.mf) return ''; if (FV.psf && st !== FV.psf) return ''; if (q && (o.Payee + ' ' + o.ReceiptNo).toLowerCase().indexOf(q) < 0) return '';
+    paid += v; n++;
+    return '<tr>' + td(FV.year) + td(esc(o.ReceiptNo || o.RefNo || '')) + td(MONTHS[N(o.Month) - 1]) + td(fmtDate(FV.year + '-' + String(o.Month).padStart(2, '0') + '-' + String(o.Day).padStart(2, '0'))) + td(esc(o.Payee)) + tdn(v, 1) + tdn(fee, 1) + tdn(Math.max(0, fee - v), 1) + td('<span class="st ' + (st === 'Completed' ? 'ok' : 'low') + '">' + st + '</span>') + '</tr>';
+  }).join('');
+  var main = '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<select id="fMF"><option value="0">All months</option>' + MONTHS.map(function (m, i) { return '<option value="' + (i + 1) + '"' + (FV.mf === i + 1 ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select>' +
+    '<select id="fPs"><option value="">All status</option>' + opts(['Completed', 'Incomplete'], FV.psf) + '</select><input id="fQ" placeholder="Search student" value="' + esc(FV.q) + '"><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>' +
+    '<div class="sh" style="--c:' + C.fin + '">PARENT SUPPORT FEE – ' + FV.year + '  ·  GRAND TOTAL PAID: ' + money(paid) + '</div>' + (fee ? '' : '<div class="note">Set the Project Fee Rate (K per student) on Setup & Budget to see balances.</div>') +
+    '<div class="wrap"><table class="tbl x"><thead><tr><th>Year</th><th>Ref / Receipt</th><th>Month</th><th>Date</th><th>Student Name</th><th style="text-align:right">Amount Paid (K)</th><th style="text-align:right">Fee Charged (K)</th><th style="text-align:right">Balance (K)</th><th>Status</th></tr></thead><tbody>' + (body || '<tr><td colspan="9" class="muted">No payments for this choice.</td></tr>') + '</tbody></table></div><p class="muted">' + n + ' payments · enter PSF in the CCB as I# with area Parent Support Fee (PSF) and the student name as payee.</p>';
+  return lay(finSide(F, A, '<div class="panel" style="--c:' + C.fin + '"><h3>' + ico('busts_in_silhouette') + 'PSF this year</h3>' + kvTable([['Fee rate', money(fee)], ['Students (setup)', F.info.STUDENTS], ['Expected', money(N(F.info.STUDENTS) * fee)], ['Paid', money(A.areaIn('Parent Support Fee (PSF)', 1, 12))]]) + '</div>'), main);
+}
+function finSetup(F, A) {
+  var I = F.info, inp = function (k, v, t) { return '<input data-s="' + k + '" value="' + esc(v) + '"' + (t ? ' type="' + t + '" step="any"' : '') + ' style="width:100%">'; };
+  var main = '<div class="bar">' + yearSel('fY', F.years, FV.year) + '<button class="btn ok" id="fSave">' + ico('floppy_disk') + 'Save setup</button><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>' +
+    '<div class="note">These are the Excel <b>FIN_SETUP</b> values for ' + FV.year + '. If you also use Excel Finance, change them there – <b>Upload Online</b> from Excel replaces what is typed here.</div>';
+  main += '<div class="sh" style="--c:' + C.fin + '">School details & bank details (Format 01)</div><div class="form" style="margin-bottom:12px">' +
+    [['SCHOOL_NAME', 'School name'], ['SCHOOL_CODE', 'School code'], ['PROVINCE', 'Province'], ['DISTRICT', 'District'], ['SECTOR', 'Sector'], ['ACC_NAME', 'Account name'], ['ACC_NO', 'Account number'], ['BANK', 'Bank'], ['BRANCH', 'Branch'], ['BOM_CHAIR', 'BOM chairman'], ['BOM_TREAS', 'BOM treasurer'], ['BOM_HEAD', 'Head teacher']]
+      .map(function (k) { return '<label>' + k[1] + inp(k[0], I[k[0]]) + '</label>'; }).join('') + '</div>';
+  main += '<div class="sh" style="--c:' + C.fin + '">Enrolment, project fee rate & opening balances</div><div class="form" style="margin-bottom:12px">' +
+    '<label>Total number of students' + inp('STUDENTS', I.STUDENTS, 'number') + '</label><label>Project fee rate (K per student)' + inp('FEE_RATE', I.FEE_RATE, 'number') + '</label>' +
+    '<label>Opening cash on hand (BBF) – blank = last year\'s closing' + inp('OPEN_CASH', I.OPEN_CASH_SET, 'number') + '</label><label>Opening cash at bank (BBF) – blank = last year\'s closing' + inp('OPEN_BANK', I.OPEN_BANK_SET, 'number') + '</label></div>' +
+    '<p class="muted" style="margin:-4px 0 12px">Balance brought forward used now: cash ' + money(A.open.c) + ' · bank ' + money(A.open.b) + ' · total ' + money(A.open.c + A.open.b) + '</p>';
+  var rr = A.bud.rev.map(function (r, i) {
+    var act = A.incAct(i + 1, 1, 12), cell = i === 0 ? amt(r.amt, 1) : inp('REV_' + (i + 1), I['REV_' + (i + 1)]);
+    return '<tr>' + td(i + 1) + td(esc(r.name)) + '<td class="n">' + cell + '</td>' + tdn(act, 1) + tdn(r.amt - act, 1) + '</tr>';
+  }).join('');
+  main += '<div class="sh" style="--c:' + C.fin + '">Annual revenue budget (Format 02)</div><table class="tbl x"><thead><tr><th>Item #</th><th>Type of Income</th><th style="text-align:right">Annual Revenue</th><th style="text-align:right">Actual Revenue</th><th style="text-align:right">Outstanding Amount</th></tr></thead><tbody>' + rr +
+    '<tr class="tot"><td></td><td>Total Annual Expected Revenue</td>' + tdn(A.bud.total, 1) + tdn(A.totIncome(1, 12) - A.otherInc(1, 12), 1) + tdn(A.bud.total - (A.totIncome(1, 12) - A.otherInc(1, 12)), 1) + '</tr></tbody></table><p class="muted" style="font-size:12px">Parent Support Fee: type AUTO to use students × fee rate.</p>';
+  var er = A.bud.parts.map(function (P, p) {
+    var act = A.partAct(p + 1, 1, 12);
+    var s = '<tr style="font-weight:800">' + td('<input data-s="PART_' + (p + 1) + '_PCT" value="' + P.pct + '" type="number" step="any" style="width:60px">') + td('<input data-s="PART_' + (p + 1) + '_NAME" value="' + esc(P.name) + '" style="width:100%">') + td('') + tdn(P.amt, 1) + (p < 6 ? tdn(act, 1) + tdn(P.amt - act, 1) : '<td></td><td></td>') + '</tr>';
+    if (p < 6) s += P.items.map(function (it, i) { var a = A.itemAct(p + 1, i + 1, 1, 12); return '<tr>' + td('') + td('<input data-s="ITEM_' + (p + 1) + '_' + (i + 1) + '_NAME" value="' + esc(it.name) + '" style="width:100%">') + td('<input data-s="ITEM_' + (p + 1) + '_' + (i + 1) + '_PCT" value="' + it.pct + '" type="number" step="any" style="width:60px">') + tdn(it.amt, 1) + tdn(a, 1) + tdn(it.amt - a, 1) + '</tr>'; }).join('');
+    return s;
+  }).join('');
+  main += '<div class="sh" style="--c:' + C.fin + ';margin-top:12px">Annual expenditure budget – School SLIP (Format 03)</div><div class="wrap" style="max-height:none"><table class="tbl x"><thead><tr><th>%</th><th>Budget Item</th><th>% of Part</th><th style="text-align:right">Annual Budget Amount</th><th style="text-align:right">Actual Spendings</th><th style="text-align:right">Remaining Balance</th></tr></thead><tbody>' + er + '</tbody></table></div>';
+  return lay(finSide(F, A), main);
+}
+function saveSetup(F) {
+  var vals = {}; $$('[data-s]').forEach(function (el) { vals[el.dataset.s] = el.value; });
+  $('#fSave').disabled = true;
+  call('apiSaveFinSetup', FA(), FV.year, vals).then(function (d) { setOnline(true); d.rows0 = d.rows.slice(); ls(ckey('fin_' + FV.year), d); FV.F = null; toast('Setup saved'); pageFinance(); })
+    .catch(function (e) { $('#fSave').disabled = false; toast(errText(e) === 'No network' ? 'Saving the setup needs the internet.' : 'Not saved: ' + errText(e), 1); });
+}
+
+/* ------------------------------------------------------------------ ASSESSMENT (SARRS): own sign-in, ASM_HOME, SAPS, SASS, checklists, report cards, yearly lists */
+var AV = { year: null, view: 'home', cc: 'ALL', q: '', sid: '' };
+var ASM_VIEWS = [['home', 'Dashboard', 'bar_chart'], ['students', 'Students', 'student'], ['results', 'SAPS', 'trophy'], ['sass', 'SASS', 'chart_increasing'], ['checks', 'Checklists', 'check_mark_button'],
+                 ['cards', 'Report Cards', 'page_facing_up'], ['transcript', 'Transcript', 'memo'], ['next', 'Next Grade', 'graduation_cap'], ['repeat', 'Repeat', 'counterclockwise_arrows_button'], ['left', 'Left', 'door'], ['withdrawn', 'Withdrawn', 'triangular_flag']];
+function p1(v) { return v == null || isNaN(v) ? '–' : (Math.round(v * 10) / 10) + '%'; }
+function asmTop(d) {
+  var y = d ? d.year : YEAR;
+  return head('bar_chart', 'Assessment (SARRS)  ' + y, 'Assessment', 'Signed in to Assessment as <b>' + esc(AUTH ? AUTH.user : '') + '</b>. Results are worked out by SARRS in Excel and sent with <b>Upload Online</b>' +
+    (d && d.resultsAt ? ' (last upload ' + esc(d.resultsAt) + ')' : '') + '. Marks are typed in <b>Marks Entry</b>.' + (d && d._offline ? ' <span style="color:#e0a400">Offline copy.</span>' : '')) + subnav(ASM_VIEWS, AV.view, C.asm, 'av');
+}
+function asmBind() {
+  bindNav('av', function (v) { AV.view = v; AV.q = ''; pageAssess(true); });
+  bindNav('avgo', function (v) { AV.view = v; AV.q = ''; pageAssess(true); });
+  $$('[data-href]').forEach(function (b) { b.onclick = function () { location.href = b.dataset.href; }; });
+  if ($('#aY')) $('#aY').onchange = function () { AV.year = Number(this.value); AV.d = null; pageAssess(); };
+  if ($('#aC')) $('#aC').onchange = function () { AV.cc = this.value; pageAssess(true); };
+  if ($('#aS')) $('#aS').onchange = function () { AV.sid = this.value; pageAssess(true); };
+  if ($('#aQ')) $('#aQ').oninput = function () { AV.q = this.value; var p = this.selectionStart; pageAssess(true); setTimeout(function () { var x = $('#aQ'); if (x) { x.focus(); x.setSelectionRange(p, p); } }, 0); };
+}
+function cardUrl(d, s) { return (apiUrl() || d.appUrl) + '?id=' + encodeURIComponent(s.id) + '&k=' + encodeURIComponent(s.k); }
+function pageAssess(keep) {
+  if (!AUTH) return moduleLogin('asm');
+  if (AV.view === 'students') return pageStudents({ html: asmTop(AV.d), bind: asmBind });
+  var p = keep && AV.d && (!AV.year || AV.d.year === AV.year) ? Promise.resolve(AV.d) : load('asm_' + AUTH.user + '_' + (AV.year || ''), 'apiAssess', AUTH, AV.year || '');
+  p.then(function (d) {
+    AV.d = d; AV.year = d.year; d.reports = d.reports || {}; d.checks = d.checks || {}; d.subjects = d.subjects || {};
+    var S = d.students, act = S.filter(function (s) { return /^active$/i.test(s.status || 'Active'); });
+    var avg = function (f, list) { var v = list.filter(function (s) { return s[f] != null && !isNaN(s[f]); }); return v.length ? v.reduce(function (t, s) { return t + s[f]; }, 0) / v.length : 0; };
+    var side = '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('clipboard') + 'Summary</h3>' + kvTable([['Working year', yearSel('aY', d.years, d.year)], ['Students', S.length], ['Results ready', S.filter(function (s) { return s.result; }).length],
+      ['Left / withdrawn', S.filter(function (s) { return /left|withdraw/i.test(s.status); }).length], ['Pass mark', d.passMark <= 1 ? Math.round(d.passMark * 100) + '%' : d.passMark], ['My classes', esc(d.classes.join(', ') || '–')]]) + '</div>' +
+      shortcuts([['data-href="marks.html"', 'pencil', 'Marks entry'], ['data-avgo="results"', 'trophy', 'SAPS – class results'], ['data-avgo="cards"', 'page_facing_up', 'Report cards'], ['data-avgo="students"', 'student', 'Students'],
+                 ['onclick="print()"', 'printer', 'Print this page'], ['data-modout="asm"', 'locked', 'Log out of Assessment']], C.asm);
+    var main = '', q = AV.q.toLowerCase();
+    var inCls = function (s) { return (AV.cc === 'ALL' || s.cc === AV.cc) && (!q || (s.sur + ' ' + s.name + ' ' + s.id).toLowerCase().indexOf(q) >= 0); };
+    var byClass = function (a, b) { return (d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) || a.sur.localeCompare(b.sur); };
+    var filt = '<div class="bar">' + yearSel('aY', d.years, d.year) + '<select id="aC"><option value="ALL">All ' + (d.admin ? 'classes' : 'my classes') + '</option>' + opts(d.classes, AV.cc) + '</select><input id="aQ" placeholder="Search name or ID" value="' + esc(AV.q) + '"><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>';
+    var shTitle = function (t) { return '<div class="sh" style="--c:' + C.asm + '">' + t + ' – ' + d.year + (AV.cc !== 'ALL' ? ' – ' + esc(AV.cc) + (d.teachers[AV.cc] ? ' (' + esc(d.teachers[AV.cc]) + ')' : '') : '') + '</div>'; };
+    var resTag = function (s) { return s.result ? '<span class="st ' + (/promote/i.test(s.result) ? 'ok' : /repeat/i.test(s.result) ? 'out' : 'low') + '">' + esc(s.result) + '</span>' : ''; };
+    if (AV.view === 'home') {
+      var k = [['STUDENTS (ACTIVE)', act.length, act.filter(function (s) { return /^m/i.test(s.sex); }).length + ' boys · ' + act.filter(function (s) { return /^f/i.test(s.sex); }).length + ' girls', C.stu, 'busts_in_silhouette'],
+               ['AVERAGE YEAR %', p1(avg('yr', S)), S.filter(function (s) { return /promote/i.test(s.result); }).length + ' promote · ' + S.filter(function (s) { return /repeat/i.test(s.result); }).length + ' repeat', C.asm, 'trophy'],
+               ['AP1  |  AP2  AVERAGE', p1(avg('ap1', S)) + '  |  ' + p1(avg('ap2', S)), 'Assessment periods 1 and 2 · ' + d.year, '#2E8B57', 'chart_increasing'],
+               ['TEACHERS & CLASSES', Object.keys(d.teachers).length, d.classes.length + ' classes', C.tch, 'teacher']];
+      main += '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
+      var groups = [['MARKS & ASSESSMENT', [['marks.html', 'pencil', 'Marks Entry', 'Type marks for your class (works offline)'], ['@students', 'student', 'Student Entry', 'Add or correct students'], ['@results', 'trophy', 'SAPS', 'Student academic performance summary'], ['@sass', 'chart_increasing', 'SASS', 'Subject averages by class']]],
+                    ['CHECKLISTS – ATTITUDES, SKILLS & WORK HABITS', [['@checks', 'check_mark_button', 'Checklists', 'AWH (G4-6), KSA (G1-3), Skills (Prep)']]],
+                    ['REPORT CARDS, ID CARDS & CERTIFICATES', [['@cards', 'page_facing_up', 'Report Cards', 'Open and print each student\'s report card'], ['marks.html', 'identification_card', 'ID Cards', 'Student and teacher ID cards with QR']]],
+                    ['YEARLY SUMMARY', [['@transcript', 'memo', 'Transcript', 'One student, every subject'], ['@next', 'graduation_cap', 'Next Grade', 'Students who promote'], ['@repeat', 'counterclockwise_arrows_button', 'Repeat', 'Students who repeat'], ['@left', 'door', 'Left', 'Students who left'], ['@withdrawn', 'triangular_flag', 'Withdrawn', 'Students withdrawn']]]];
+      main += groups.map(function (g) { return '<div class="group" style="--c:' + C.asm + '"><h4>' + ico('bar_chart') + g[0] + '</h4><div class="tiles">' + g[1].map(function (t) { return '<button class="tile" ' + (t[0].charAt(0) === '@' ? 'data-avgo="' + t[0].slice(1) + '"' : 'data-href="' + t[0] + '"') + ' style="--c:' + C.asm + '"><span class="sq">' + ico(t[1]) + '</span><span><b>' + esc(t[2]) + '</b><small>' + esc(t[3]) + '</small></span></button>'; }).join('') + '</div></div>'; }).join('');
+      main += '<div class="panel" style="--c:' + C.stu + '"><h3>' + ico('busts_in_silhouette') + 'Students by class (working year)</h3>' + bars(d.classes, [{ name: 'Boys', color: '#2F80ED', data: d.classes.map(function (c) { return act.filter(function (s) { return s.cc === c && /^m/i.test(s.sex); }).length; }) }, { name: 'Girls', color: '#E46C0A', data: d.classes.map(function (c) { return act.filter(function (s) { return s.cc === c && /^f/i.test(s.sex); }).length; }) }], { stacked: true }) + '</div>';
+      main += '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('chart_increasing') + 'Average % by grade – AP1 and AP2</h3>' + bars(GRADES.map(function (g) { return g.replace('Grade ', 'G'); }), [{ name: 'AP1 %', color: '#2F80ED', data: GRADES.map(function (g) { return avg('ap1', S.filter(function (s) { return s.grade === g; })); }) }, { name: 'AP2 %', color: '#2E8B57', data: GRADES.map(function (g) { return avg('ap2', S.filter(function (s) { return s.grade === g; })); }) }], { max: 100 }) + '</div>';
+    } else if (AV.view === 'sass') {
+      var cls = AV.cc === 'ALL' ? d.classes : [AV.cc];
+      main += filt + shTitle('STUDENT ACADEMIC SUBJECT SUMMARY (SASS)');
+      cls.forEach(function (c) {
+        var list = S.filter(function (s) { return s.cc === c && !/left|withdraw/i.test(s.status); }), g = (list[0] || {}).grade || '';
+        var names = d.subjects[g] || [];
+        if (!names.length) { main += '<div class="panel"><b>' + esc(c) + '</b> <span class="muted">– no subject results (' + (g === 'Prep' ? 'Prep is reported with skills checklists' : 'upload results from Excel') + ').</span></div>'; return; }
+        var row = function (ap) { return names.map(function (n, i) { var v = list.map(function (s) { var r = (d.reports[s.id] || {})[i + 1]; return r ? r[ap] : null; }).filter(function (x) { return x != null && !isNaN(x); }); return v.length ? v.reduce(function (t, x) { return t + x; }, 0) / v.length : null; }); };
+        var a1 = row(0), a2 = row(1);
+        main += '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('school') + esc(c) + (d.teachers[c] ? ' – ' + esc(d.teachers[c]) : '') + ' · ' + list.length + ' students</h3><div class="wrap" style="max-height:none"><table class="tbl x"><thead><tr><th>Subject</th><th style="text-align:right">AP1 average</th><th style="text-align:right">AP2 average</th><th style="text-align:right">Passed AP2</th></tr></thead><tbody>' +
+          names.map(function (n, i) { if (!n) return ''; var pass = list.filter(function (s) { var r = (d.reports[s.id] || {})[i + 1]; return r && r[1] != null && r[1] >= (d.passMark <= 1 ? d.passMark * 100 : d.passMark); }).length;
+            return '<tr>' + td(esc(n)) + td(p1(a1[i]), 'n') + td(p1(a2[i]), 'n') + td(pass + ' / ' + list.length, 'n') + '</tr>'; }).join('') + '</tbody></table></div>' +
+          bars(names.map(function (n) { return String(n).slice(0, 6); }), [{ name: 'AP1 %', color: '#2F80ED', data: a1.map(function (x) { return x || 0; }) }, { name: 'AP2 %', color: '#2E8B57', data: a2.map(function (x) { return x || 0; }) }], { max: 100, h: 170 }) + '</div>';
+      });
+    } else if (AV.view === 'checks') {
+      var cl = S.filter(inCls).sort(byClass);
+      var T = { AWH: 'Attitudes & Work Habits (G4-6)', KSA: 'Knowledge, Skills & Attitudes (G1-3)', SKL: 'Skills (Prep / G1)' };
+      main += filt + shTitle('CHECKLISTS – ATTITUDES, SKILLS & WORK HABITS') + '<div class="wrap"><table class="tbl x"><thead><tr><th>ID</th><th>Name</th><th>Class</th><th>AP</th><th>Checklist</th><th style="text-align:right">Days absent</th><th style="text-align:right">Average points</th><th>Teacher\'s comment</th></tr></thead><tbody>' +
+        cl.map(function (s) { return (d.checks[s.id] || []).sort(function (a, b) { return a.ap - b.ap; }).map(function (c) { return '<tr>' + td(esc(s.id)) + td('<b>' + esc(s.sur) + '</b> ' + esc(s.name)) + td(esc(s.cc)) + td('AP' + c.ap) + td(esc(T[c.type] || c.type)) + td(esc(c.days), 'n') + td(c.avg === '' || c.avg == null ? '' : Math.round(N(c.avg) * 100) / 100, 'n') + td(esc(c.comment)) + '</tr>'; }).join(''); }).join('') +
+        '</tbody></table></div><p class="muted">Checklists are filled in the Excel workbook (ASM checklist sheets) and come here with Upload Online.</p>';
+    } else if (AV.view === 'transcript') {
+      var pool = S.filter(function (s) { return AV.cc === 'ALL' || s.cc === AV.cc; }).sort(byClass);
+      if (!AV.sid || !pool.some(function (s) { return s.id === AV.sid; })) AV.sid = pool.length ? pool[0].id : '';
+      var st = pool.filter(function (s) { return s.id === AV.sid; })[0];
+      main += '<div class="bar">' + yearSel('aY', d.years, d.year) + '<select id="aC"><option value="ALL">All ' + (d.admin ? 'classes' : 'my classes') + '</option>' + opts(d.classes, AV.cc) + '</select><select id="aS">' + pool.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === AV.sid ? ' selected' : '') + '>' + esc(s.cc + ' · ' + s.sur + ' ' + s.name) + '</option>'; }).join('') + '</select><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>';
+      if (st) {
+        var names2 = d.subjects[st.grade] || [], rep = d.reports[st.id] || {};
+        main += '<div class="sh" style="--c:' + C.asm + '">YEARLY TRANSCRIPT – ' + d.year + '</div><div class="panel" style="--c:' + C.asm + '">' + kvTable([['Student', '<b>' + esc(st.sur) + '</b> ' + esc(st.name) + ' (' + esc(st.id) + ')'], ['Class / grade', esc(st.cc + ' · ' + st.grade)], ['Sex', esc(st.sex)], ['Status', esc(st.status)], ['Class teacher', esc(d.teachers[st.cc] || '')]]) + '</div>' +
+          '<table class="tbl x"><thead><tr><th>#</th><th>Subject</th><th style="text-align:right">AP1 %</th><th style="text-align:right">AP2 %</th></tr></thead><tbody>' +
+          (names2.length ? names2.map(function (n, i) { var r = rep[i + 1] || [null, null]; return n ? '<tr>' + td(i + 1) + td(esc(n)) + td(p1(r[0]), 'n') + td(p1(r[1]), 'n') + '</tr>' : ''; }).join('') : '<tr><td colspan="4" class="muted">No subject results for this grade.</td></tr>') +
+          '<tr class="tot"><td></td><td>Total marks · AP1 ' + esc(st.t1 == null ? '' : st.t1) + ' · AP2 ' + esc(st.t2 == null ? '' : st.t2) + ' · Year ' + esc(st.ty == null ? '' : st.ty) + '</td>' + td(p1(st.ap1), 'n') + td(p1(st.ap2), 'n') + '</tr></tbody></table>' +
+          '<div class="kpis" style="margin-top:12px"><div class="kpi" style="--c:' + C.asm + '"><small>YEAR %</small><b>' + p1(st.yr) + '</b><span>Days absent AP1 ' + esc(st.abs1 || 0) + ' · AP2 ' + esc(st.abs2 || 0) + '</span></div><div class="kpi" style="--c:#2E8B57"><small>RESULT</small><b>' + esc(st.result || '–') + '</b><span>' + (st.k && d.admin ? '<a href="' + esc(cardUrl(d, st)) + '" target="_blank" style="color:var(--gold)">Open report card</a>' : '') + '</span></div></div>';
+      } else main += '<p class="muted">No students.</p>';
+    } else {
+      var list = S, title = '';
+      if (AV.view === 'results') { title = 'STUDENT ACADEMIC PERFORMANCE SUMMARY (SAPS)'; list = S.filter(function (s) { return !/left|withdraw/i.test(s.status); }); }
+      if (AV.view === 'cards') { title = 'REPORT CARDS'; list = S.filter(function (s) { return !/left|withdraw/i.test(s.status); }); }
+      if (AV.view === 'next') { title = 'STUDENTS PROMOTED TO THE NEXT GRADE'; list = S.filter(function (s) { return /promote/i.test(s.result); }); }
+      if (AV.view === 'repeat') { title = 'STUDENTS TO REPEAT'; list = S.filter(function (s) { return /repeat/i.test(s.result); }); }
+      if (AV.view === 'left') { title = 'STUDENTS WHO LEFT'; list = S.filter(function (s) { return /left/i.test(s.status); }); }
+      if (AV.view === 'withdrawn') { title = 'STUDENTS WITHDRAWN'; list = S.filter(function (s) { return /withdraw/i.test(s.status); }); }
+      list = list.filter(inCls).sort(function (a, b) { return AV.view === 'results' ? (a.cc === b.cc ? (b.yr == null ? -1 : b.yr) - (a.yr == null ? -1 : a.yr) : d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) : byClass(a, b); });
+      var pos = {}, rank = {};
+      list.forEach(function (s) { pos[s.cc] = (pos[s.cc] || 0) + 1; rank[s.id] = s.yr == null ? '' : pos[s.cc]; });
+      main += filt + shTitle(title) + (AV.view === 'cards' && !d.admin ? '<div class="note">Report cards open for the Administrator. Teachers print them from Excel.</div>' : '') + '<div class="wrap"><table class="tbl x"><thead><tr>' +
+        (AV.view === 'results' ? '<th>Pos</th>' : '<th>#</th>') + '<th>ID</th><th>Surname</th><th>Name</th><th>Sex</th><th>Class</th><th style="text-align:right">AP1 %</th><th style="text-align:right">AP2 %</th><th style="text-align:right">Year %</th><th>Result</th><th>Status</th>' + (d.admin ? '<th class="noprint">Report card</th>' : '') + '</tr></thead><tbody>' +
+        list.map(function (s, i) { return '<tr>' + td(AV.view === 'results' ? rank[s.id] : i + 1) + td(esc(s.id)) + td('<b>' + esc(s.sur) + '</b>') + td(esc(s.name)) + td(esc(s.sex)) + td(esc(s.cc)) + td(p1(s.ap1), 'n') + td(p1(s.ap2), 'n') + td('<b>' + p1(s.yr) + '</b>', 'n') + td(resTag(s)) + td(esc(s.status)) +
+          (d.admin ? '<td class="noprint">' + (s.k ? '<a class="btn" target="_blank" rel="noopener" href="' + esc(cardUrl(d, s)) + '">' + ico('page_facing_up') + 'Open</a>' : '') + '</td>' : '') + '</tr>'; }).join('') +
+        (list.length ? '' : '<tr><td colspan="12" class="muted">No students in this list. Results come from Excel: work out the SARRS results, then Upload Online.</td></tr>') + '</tbody></table></div><p class="muted">' + list.length + ' students</p>';
+    }
+    $('#page').innerHTML = asmTop(d) + lay(side, main);
+    asmBind();
+  }).catch(function (e) { if (/Wrong UserName or Password|AUTH/.test(String(e && e.message))) return moduleLogin('asm', errText(e)); $('#page').innerHTML = '<div class="note bad">' + esc(errText(e)) + '</div>'; });
+}
+
+/* ------------------------------------------------------------------ MAIN HOMEPAGE (Excel sheet HOME) */
+function pageHome(d) {
+  var p = d && d.year ? Promise.resolve(d) : load('dash', 'apiDashboard', MA());
+  p.then(function (d) {
+    YEAR = d.year; ME = d.me || ME;
+    var fin = d.finance, admin = MAIN.role === 'Admin';
+    var k = [['TEACHERS ON RECORD', d.teachers, 'Teachers database', C.tch, 'teacher'],
+             ['STUDENTS ENROLLED', d.students, d.enrol.reduce(function (t, g) { return t + g.m; }, 0) + ' male · ' + d.enrol.reduce(function (t, g) { return t + g.f; }, 0) + ' female', C.stu, 'busts_in_silhouette'],
+             ['AVERAGE YEAR %', (Math.round(d.avgYear * 10) / 10) + '%', d.promote + ' promote · ' + d.repeat + ' repeat', C.asm, 'trophy']];
+    k.push(fin ? ['FINANCE BALANCE (YEAR)', money(fin.cash + fin.bank), 'Receipts less payments · ' + fin.year, C.fin, 'bank'] : ['SCHOOL REPORTS', d.reports, 'Saved this year', C.rpt, 'page_facing_up']);
+    var h = head('house', 'Dashboard', 'Overview', 'Welcome <b>' + esc(MAIN.name) + '</b> (' + roleText() + ') – choose a module to begin · Active year <b>' + d.year + '</b>' + (d._offline ? ' · <span style="color:#e0a400">offline copy</span>' : ''));
+    h += '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
+    var groups = [['STUDENTS & ASSESSMENT', C.asm, 'bar_chart', ['assess', 'students']], ['TEACHERS & ADMINISTRATION', C.tch, 'teacher', ['Staff', 'Events', 'FormsLog']],
+                  ['FINANCE, REPORTS & INFRASTRUCTURE', C.fin, 'money_bag', ['Finance', 'SchoolReports', 'Inventory']]];
+    var nextEv = d.events[0], days = nextEv ? Math.round((new Date(nextEv.date) - new Date(today())) / 864e5) : null;
+    var main = '<div class="sh" style="--c:' + C.home + '">MODULES</div>' + groups.map(function (g) {
+      return '<div class="group" style="--c:' + g[1] + '"><h4>' + ico(g[2]) + g[0] + '</h4><div class="tiles">' + g[3].map(function (id) {
+        var m = MODS.filter(function (x) { return x.id === id; })[0], ok = can(m.need);
+        return '<button class="tile' + (ok ? '' : ' lockd') + '" data-go="' + id + '" style="--c:' + m.c + '"><span class="sq">' + ico(m.icon) + '</span><span><b>' + esc(m.label) + '</b><small>' + esc(ok ? m.sub : 'Locked for your login') + '</small></span>' + (ok ? '' : ico('locked', 'lk')) + '</button>';
+      }).join('') + '</div></div>';
+    }).join('');
+    if (admin) main += '<div class="panel" style="--c:' + C.home + '"><div class="sh" style="--c:' + C.home + '">SCHOOL AT A GLANCE   (live from every module)</div><table class="tbl x"><thead><tr><th>Module</th><th>Key figure</th><th style="text-align:right">Value</th><th>Linked with</th></tr></thead><tbody>' +
+      [['Teachers Database', 'Teachers on record', d.teachers, 'Assessment (class allocation)'], ['Student Database', 'Students enrolled in active year', d.students, 'Assessment (two-way)'],
+       ['Assessment', 'Average year % (active year)', (Math.round(d.avgYear * 10) / 10) + '%', 'Assessment (SARRS)'], ['Assessment', 'Students to promote', d.promote, 'Assessment (SARRS)'],
+       ['Finance', 'Total receipts (finance year)', fin ? money(fin.rin) : '–', 'Finance (SFMS)'], ['Finance', 'Total payments (finance year)', fin ? money(fin.rout) : '–', 'Finance (SFMS)'],
+       ['Infrastructure / Inventory', 'Items needing repair', d.invRepair || 0, '—'], ['Infrastructure / Inventory', 'Stationery lines low / out', d.invLow || 0, '—'],
+       ['Other Forms', 'Forms registered this year', d.forms || 0, 'Staff & students'], ['School Reports', 'Reports saved in active year', d.reports, 'All modules']]
+        .map(function (r) { return '<tr>' + td(esc(r[0])) + td(esc(r[1])) + td('<b>' + esc(r[2]) + '</b>', 'n') + td('<span class="muted">' + esc(r[3]) + '</span>') + '</tr>'; }).join('') + '</tbody></table></div>';
+    main += '<div class="panel" style="--c:' + C.stu + '"><h3>' + ico('busts_in_silhouette') + 'Students by grade</h3>' +
+      bars(d.enrol.map(function (g) { return g.grade.replace('Grade ', 'G'); }), [{ name: 'Boys', color: '#2F80ED', data: d.enrol.map(function (g) { return g.m; }) }, { name: 'Girls', color: '#E46C0A', data: d.enrol.map(function (g) { return g.f; }) }], { stacked: true }) + '</div>';
+    main += '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('chart_increasing') + 'Average % by grade – AP1 and AP2</h3>' +
+      bars(d.gradeAvg.map(function (g) { return g.grade.replace('Grade ', 'G'); }), [{ name: 'AP1 %', color: '#2F80ED', data: d.gradeAvg.map(function (g) { return g.ap1; }) }, { name: 'AP2 %', color: '#2E8B57', data: d.gradeAvg.map(function (g) { return g.ap2; }) }], { max: 100 }) + '</div>';
+    if (fin) main += '<div class="panel" style="--c:' + C.fin + '"><h3>' + ico('money_bag') + 'Receipts vs payments ' + fin.year + '</h3>' +
+      bars(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'], [{ name: 'Receipts', color: '#2E8B57', data: fin.months.map(function (m) { return m.rin; }) }, { name: 'Payments', color: '#E46C0A', data: fin.months.map(function (m) { return m.rout; }) }], { k: true, h: 190 }) + '</div>';
+    var side = '<div class="panel" style="--c:' + C.home + '"><h3>' + ico('spiral_calendar') + 'Today</h3>' + kvTable([['Date', new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
+        ['Next event', nextEv ? esc(nextEv.title) + '<br><small class="muted">' + fmtDate(nextEv.date) + '</small>' : 'No upcoming events listed'], ['Days to go', days === null ? '' : days === 0 ? 'Today!' : days], ['Reports saved this year', d.reports], ['Waiting to upload', OUTBOX.length]]) + '</div>' +
+      '<div class="panel" style="--c:' + C.home + '"><h3>' + ico('light_bulb') + 'Quick launch</h3>' +
+      [['assess', 'pencil', 'Assessment'], ['Finance', 'money_bag', 'Finance'], ['Events', 'spiral_calendar', 'Admin Routines'], ['SchoolReports', 'warning', 'Write a report'], ['FormsLog', 'card_index', 'Other Forms']]
+        .filter(function (b) { var m = MODS.filter(function (x) { return x.id === b[0]; })[0]; return can(m.need); })
+        .map(function (b) { return '<button class="btn" data-go="' + b[0] + '">' + ico(b[1]) + esc(b[2]) + '</button>'; }).join('') + '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>' +
+      (d.events.length > 1 ? '<div class="panel" style="--c:' + C.adm + '"><h3>' + ico('calendar') + 'Coming up</h3>' + kvTable(d.events.slice(0, 5).map(function (e) { return [fmtDate(e.date), esc(e.title)]; })) + '</div>' : '') + ownerPanel();
+    $('#page').innerHTML = h + lay(side, main) + '<p class="muted" style="font-size:12px;margin-top:10px">● Ready  |  Active year ' + d.year + '  |  Finance (SFMS) and Assessment (SARRS) built in  |  THPS School Manager v' + VERSION + '  |  Property of TOM HOEY P/SCHL</p>';
+    $$('[data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; });
+  }).catch(function (e) { $('#page').innerHTML = '<div class="note bad">Cannot open the dashboard: ' + esc(errText(e)) + '</div>'; });
+}
+
 /* ------------------------------------------------------------------ boot */
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
-if (AUTH) {
+if (MAIN && MAIN.t) {
   var cached = ls(ckey('dash'));
-  call('apiDashboard', AUTH).then(function (d) { ls(ckey('dash'), d); start(d); })
+  call('apiDashboard', MA()).then(function (d) { ls(ckey('dash'), d); start(d); })
     .catch(function (e) { if (isAuth(e)) return signOut(errText(e)); if (cached) { cached._offline = true; start(cached); } else showLogin('Cannot reach the school database (' + errText(e) + ').'); });
 } else showLogin();
 window.THPS = { version: VERSION, go: go };
