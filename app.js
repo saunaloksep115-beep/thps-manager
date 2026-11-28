@@ -4,7 +4,7 @@
  * Icons: Microsoft Fluent Emoji (MIT licence). */
 (function () {
 'use strict';
-var VERSION = '12.1';
+var VERSION = '13.0';
 var $ = function (s, r) { return (r || document).querySelector(s); };
 var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
 function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -86,6 +86,7 @@ setInterval(function () { if (OUTBOX.length) flush(); }, 60000);
 var C = { home: '#E46C0A', stu: '#D86B1E', asm: '#1F6FB2', tch: '#7030A0', fin: '#2E8B57', rpt: '#8B1A1A', adm: '#2F5597', inv: '#138D8D', oth: '#7A4E2D' };
 var MODS = [
   { id: 'home', label: 'Dashboard', icon: 'house', c: C.home, sub: 'Overview of the school' },
+  { id: 'messages', label: 'Messages', icon: 'envelope_with_arrow', c: '#2F5597', sub: 'Messages & this week\'s schedule' },
   { id: 'students', label: 'Students', icon: 'student', c: C.stu, sub: 'Student database', need: 'admin' },
   { id: 'assess', label: 'Assessment', icon: 'bar_chart', c: C.asm, sub: 'Results, marks entry, ID cards' },
   { id: 'Staff', label: 'Teachers', icon: 'teacher', c: C.tch, sub: 'Staff details & postings', need: 'admin' },
@@ -251,6 +252,7 @@ function start(d) {
   $('#burger').onclick = function () { $('#side').classList.toggle('open'); };
   setOnline(!d._offline);
   flush();
+  startMessages();
   render(d);
 }
 function go(p) {
@@ -261,10 +263,12 @@ function go(p) {
 }
 function render(dash) {
   $$('.nav[data-p]').forEach(function (b) { b.classList.toggle('on', b.dataset.p === PAGE); });
+  var mm = MODS.filter(function (x) { return x.id === PAGE; })[0]; if ($('.top')) $('.top').style.borderBottomColor = mm ? mm.c : C.home;
   var el = $('#page'); el.innerHTML = '<div class="muted">Loading…</div>';
   if (PAGE === 'home') return pageHome(dash);
   if (PAGE === 'students') return pageStudents();
   if (PAGE === 'assess') return pageAssess();
+  if (PAGE === 'messages') return pageMessages();
   if (PAGE === 'Finance') return pageFinance();
   if (PAGE === 'Inventory') return pageInventory();
   if (SCHEMA[PAGE]) return pageTable(PAGE);
@@ -286,7 +290,7 @@ function bars(labels, series, opt) {
   if (opt.max) max = opt.max; if (!max) max = 1; if (!opt.max && !opt.k && max < 4) max = 4;
   var step = Math.pow(10, Math.floor(Math.log10(max))), nice = Math.ceil(max / step) * step; max = nice;
   var cw = (W - L - 6) / n, g = '';
-  for (var k = 0; k <= 4; k++) { var y = T + (H - T - B) * (1 - k / 4), v = max * k / 4; g += '<line x1="' + L + '" x2="' + W + '" y1="' + y + '" y2="' + y + '" stroke="#333b46"/><text x="' + (L - 4) + '" y="' + (y + 4) + '" text-anchor="end">' + (opt.k ? (v >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v)) : Math.round(v)) + '</text>'; }
+  for (var k = 0; k <= 4; k++) { var y = T + (H - T - B) * (1 - k / 4), v = max * k / 4; g += '<line x1="' + L + '" x2="' + W + '" y1="' + y + '" y2="' + y + '" stroke="#d6dae0"/><text x="' + (L - 4) + '" y="' + (y + 4) + '" text-anchor="end">' + (opt.k ? (v >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v)) : Math.round(v)) + '</text>'; }
   labels.forEach(function (lab, i) {
     var x0 = L + i * cw + cw * 0.15, bw = cw * 0.7, base = H - B;
     if (stacked) {
@@ -308,7 +312,7 @@ function pageStudents(pre) {
   load(PAGE === 'assess' ? 'asm_students' : 'students', 'apiStudents', stuAuth()).then(function (d) {
     SV.list = d.students; var cls = d.classes || ME.classes;
     if (!SV.cc || cls.indexOf(SV.cc) < 0) SV.cc = 'ALL';
-    var h = head('student', 'Students ' + d.year, 'Students', 'Every change reaches the class teacher at once, and goes into the Excel database with <b>Download Online</b>.' + (d._offline ? ' <span style="color:#e0a400">Offline copy – adding needs the internet.</span>' : ''));
+    var h = head('student', 'Students ' + d.year, 'Students', 'Every change reaches the class teacher at once, and goes into the Excel database with <b>Download Online</b>.' + (d._offline ? ' <span style="color:#b35c00">Offline copy – adding needs the internet.</span>' : ''));
     var act = d.students.filter(function (s) { return !/left|withdraw|expel/i.test(s.status); });
     h += '<div class="kpis"><div class="kpi" style="--c:' + C.stu + '"><small>ACTIVE STUDENTS</small><b>' + act.length + '</b><span>' + act.filter(function (s) { return /^m/i.test(s.sex); }).length + ' boys · ' + act.filter(function (s) { return /^f/i.test(s.sex); }).length + ' girls</span>' + ico('busts_in_silhouette') + '</div>' +
       '<div class="kpi" style="--c:' + C.asm + '"><small>CLASSES</small><b>' + cls.length + '</b><span>' + esc(cls.join(', ')) + '</span>' + ico('school') + '</div>' +
@@ -363,7 +367,7 @@ function pageTable(name) {
     });
     st.rows = rows; st.canWrite = d.canWrite;
     var m = MODS.filter(function (x) { return x.id === name; })[0];
-    var h = head(S.icon, S.title + (S.year ? '  ' + st.year : '') + (st.cat ? ' – ' + st.cat : ''), m.label, (d._offline ? '<span style="color:#e0a400">Offline copy – new entries are kept on this device and upload when the network returns.</span>' : (d.canWrite ? 'Add, change or delete entries. Everything saves to the school database.' : 'You can read this page.')));
+    var h = head(S.icon, S.title + (S.year ? '  ' + st.year : '') + (st.cat ? ' – ' + st.cat : ''), m.label, (d._offline ? '<span style="color:#b35c00">Offline copy – new entries are kept on this device and upload when the network returns.</span>' : (d.canWrite ? 'Add, change or delete entries. Everything saves to the school database.' : 'You can read this page.')));
     h += summaryFor(name, rows);
     h += '<div class="bar">' + (S.year ? '<select id="tY">' + opts([YEAR - 2, YEAR - 1, YEAR, YEAR + 1], st.year) + '</select>' : '') +
       '<input id="tQ" placeholder="Search" value="' + esc(st.q) + '">' + (d.canWrite ? '<button class="btn pri" id="tAdd">' + ico('plus') + 'Add</button>' : '') +
@@ -399,7 +403,7 @@ function summaryFor(name, rows) {
       var qty = rs.reduce(function (t, r) { return t + (Number(r.Qty) || 0); }, 0);
       var bad = rs.filter(function (r) { return /repair|low|out/i.test(r.Condition || ''); }).length;
       return '<div class="kpi" data-cat="' + c[0] + '" style="--c:' + c[2] + ';cursor:pointer' + (st.cat === c[0] ? ';outline:2px solid ' + c[2] : '') + '"><small>' + c[0].toUpperCase() + '</small><b>' + rs.length + '</b><span>' +
-        qty + ' in stock' + (bad ? ' · <span style="color:#ffb3ad">' + bad + ' need attention</span>' : ' · all fine') + '</span>' + ico(c[1]) + '</div>';
+        qty + ' in stock' + (bad ? ' · <span style="color:#c0392b">' + bad + ' need attention</span>' : ' · all fine') + '</span>' + ico(c[1]) + '</div>';
     }).join('') + '</div><p class="muted noprint" style="margin:-6px 0 12px">Click a card to show only that group' + (st.cat ? ' · showing <b>' + esc(st.cat) + '</b> – <a href="#" id="catAll" style="color:var(--gold)">show all</a>' : '') + '.</p>';
   }
   var key = { SchoolReports: 'Type', Events: 'Kind', Inventory: 'Condition', Staff: 'Status', FormsLog: 'Form' }[name], cnt = {};
@@ -441,6 +445,7 @@ function rowForm(name, r) {
     (S.printOne && !isNew ? '<button class="btn" id="rPrint">' + ico('printer') + 'Print</button>' : '') +
     '<button class="btn" id="rX">Close</button>' + (st.canWrite ? '<button class="btn ok" id="rS">' + ico('floppy_disk') + 'Save</button>' : '') + '</div></div>';
   document.body.appendChild(m);
+  if (!ro) attachPeople(m);
   $('#rX', m).onclick = function () { m.remove(); };
   if ($('#rPrint', m)) $('#rPrint', m).onclick = function () { printOne(name, r); };
   if ($('#rDel', m)) $('#rDel', m).onclick = function () {
@@ -536,6 +541,7 @@ function formModal(title, icon, fields, r, opt) {
     (r.Key && opt.canWrite && opt.onDelete ? '<button class="btn bad" id="mDel">' + ico('wastebasket') + 'Delete</button>' : '') + (opt.extra || '') +
     '<button class="btn" id="mX">Close</button>' + (opt.canWrite ? '<button class="btn ok" id="mS">' + ico('floppy_disk') + 'Save</button>' : '') + '</div></div>';
   document.body.appendChild(m);
+  if (opt.canWrite) attachPeople(m);
   var val = function () { var o = {}; $$('[data-f]', m).forEach(function (el) { o[el.dataset.f] = el.value; }); return o; };
   $('#mX', m).onclick = function () { m.remove(); };
   if (opt.onChange) $$('[data-f]', m).forEach(function (el) { el.onchange = function () { opt.onChange(el.dataset.f, val(), m); }; });
@@ -601,7 +607,7 @@ function pageInventory(keep) {
     Object.keys(INV).forEach(function (n) { d[n] = withOutbox(n, d[n] || [], null).filter(function (r) { return Number(r.Year) === IV.year; }).map(function (r) { return INV[n].calc ? INV[n].calc(r) : r; }); });
     var views = [['home', 'Summary', 'building_construction']].concat(Object.keys(INV).map(function (n) { return [INV[n].v, INV[n].label, INV[n].icon]; }));
     var h = head('building_construction', 'School Infrastructure / Inventory  ' + IV.year, 'Infrastructure', 'Three registers – Infrastructure, School Basic Stationeries and Curriculum – the same as the Excel sheets. ' +
-      (d._offline ? '<span style="color:#e0a400">Offline copy – new entries upload when the network returns.</span>' : d.canWrite ? 'Each record is saved to the school database and goes into Excel with <b>Download Online</b>.' : 'You can read these registers.'));
+      (d._offline ? '<span style="color:#b35c00">Offline copy – new entries upload when the network returns.</span>' : d.canWrite ? 'Each record is saved to the school database and goes into Excel with <b>Download Online</b>.' : 'You can read these registers.'));
     h += subnav(views, IV.view, C.inv, 'iv');
     h += IV.view === 'home' ? invHome(d) : invReg(invName(IV.view), d);
     $('#page').innerHTML = h;
@@ -771,7 +777,7 @@ function pageFinance(keep) {
     var views = [['home', 'Dashboard', 'money_bag'], ['ccb', 'CCB Entry', 'ledger'], ['monthly', 'Monthly Summary', 'calendar'], ['quarter', 'Quarterly Report', 'bar_chart'],
                  ['annual', 'Annual Report', 'page_facing_up'], ['receipts', 'Receipts', 'receipt'], ['invoices', 'Invoices', 'inbox_tray'], ['psf', 'Parent Support Fee', 'busts_in_silhouette'], ['setup', 'Setup & Budget', 'gear']];
     var h = head('money_bag', 'School Finance (SFMS)  ' + FV.year, 'Finance', 'Combined Cash Book based on the School SLIP – the same entries, balances and reports as the Excel Finance. ' +
-      (F._offline ? '<span style="color:#e0a400">Offline copy – new entries upload when the network returns.</span>' : 'New entries go into Excel with <b>Download Online</b>.'));
+      (F._offline ? '<span style="color:#b35c00">Offline copy – new entries upload when the network returns.</span>' : 'New entries go into Excel with <b>Download Online</b>.'));
     h += subnav(views, FV.view, C.fin, 'fv');
     var fn = { home: finHome, ccb: finCCB, monthly: finMonthly, quarter: finQuarter, annual: finAnnual, receipts: finReceipts, invoices: finInvoices, psf: finPSF, setup: finSetup }[FV.view] || finHome;
     h += fn(F, A);
@@ -1022,14 +1028,15 @@ function saveSetup(F) {
 }
 
 /* ------------------------------------------------------------------ ASSESSMENT (SARRS): own sign-in, ASM_HOME, SAPS, SASS, checklists, report cards, yearly lists */
-var AV = { year: null, view: 'home', cc: 'ALL', q: '', sid: '' };
-var ASM_VIEWS = [['home', 'Dashboard', 'bar_chart'], ['students', 'Students', 'student'], ['results', 'SAPS', 'trophy'], ['sass', 'SASS', 'chart_increasing'], ['checks', 'Checklists', 'check_mark_button'],
-                 ['cards', 'Report Cards', 'page_facing_up'], ['transcript', 'Transcript', 'memo'], ['next', 'Next Grade', 'graduation_cap'], ['repeat', 'Repeat', 'counterclockwise_arrows_button'], ['left', 'Left', 'door'], ['withdrawn', 'Withdrawn', 'triangular_flag']];
+var AV = { year: null, view: 'home', cc: 'ALL', q: '', sid: '', ap: 1 };
+var ASM_VIEWS = [['home', 'Dashboard', 'bar_chart'], ['students', 'Student Entry', 'student'], ['studentdb', 'Student Database', 'card_index'], ['saps', 'SAPS', 'trophy'], ['sass', 'SASS', 'chart_increasing'],
+                 ['checks', 'Checklists', 'check_mark_button'], ['cards', 'Report Cards', 'page_facing_up'], ['transcript', 'Transcript', 'memo'], ['results', 'Class Results', 'bar_chart'],
+                 ['next', 'Next Grade', 'graduation_cap'], ['repeat', 'Repeat', 'counterclockwise_arrows_button'], ['left', 'Left', 'door'], ['withdrawn', 'Withdrawn', 'triangular_flag']];
 function p1(v) { return v == null || isNaN(v) ? '–' : (Math.round(v * 10) / 10) + '%'; }
 function asmTop(d) {
   var y = d ? d.year : YEAR;
   return head('bar_chart', 'Assessment (SARRS)  ' + y, 'Assessment', 'Signed in to Assessment as <b>' + esc(AUTH ? AUTH.user : '') + '</b>. Results are worked out by SARRS in Excel and sent with <b>Upload Online</b>' +
-    (d && d.resultsAt ? ' (last upload ' + esc(d.resultsAt) + ')' : '') + '. Marks are typed in <b>Marks Entry</b>.' + (d && d._offline ? ' <span style="color:#e0a400">Offline copy.</span>' : '')) + subnav(ASM_VIEWS, AV.view, C.asm, 'av');
+    (d && d.resultsAt ? ' (last upload ' + esc(d.resultsAt) + ')' : '') + '. Marks are typed in <b>Marks Entry</b>.' + (d && d._offline ? ' <span style="color:#b35c00">Offline copy.</span>' : '')) + subnav(ASM_VIEWS, AV.view, C.asm, 'av');
 }
 function asmBind() {
   bindNav('av', function (v) { AV.view = v; AV.q = ''; pageAssess(true); });
@@ -1038,6 +1045,10 @@ function asmBind() {
   if ($('#aY')) $('#aY').onchange = function () { AV.year = Number(this.value); AV.d = null; pageAssess(); };
   if ($('#aC')) $('#aC').onchange = function () { AV.cc = this.value; pageAssess(true); };
   if ($('#aS')) $('#aS').onchange = function () { AV.sid = this.value; pageAssess(true); };
+  if ($('#aAP')) $('#aAP').onchange = function () { AV.ap = Number(this.value); if (AV.view !== 'cards') pageAssess(true); };
+  if ($('#aSub')) $('#aSub').onchange = function () { AV.subj = Number(this.value); pageAssess(true); };
+  $$('[data-rc]').forEach(function (b) { b.onclick = function (e) { e.preventDefault(); openReportCards(AV.cc === 'ALL' ? ((AV.d.students.filter(function (x) { return x.id === b.dataset.rc; })[0] || {}).cc) : AV.cc, AV.ap, b.dataset.rc); }; });
+  $$('[data-rcall]').forEach(function (b) { b.onclick = function () { openReportCards(AV.cc, AV.ap, ''); }; });
   if ($('#aQ')) $('#aQ').oninput = function () { AV.q = this.value; var p = this.selectionStart; pageAssess(true); setTimeout(function () { var x = $('#aQ'); if (x) { x.focus(); x.setSelectionRange(p, p); } }, 0); };
 }
 function cardUrl(d, s) { return (apiUrl() || d.appUrl) + '?id=' + encodeURIComponent(s.id) + '&k=' + encodeURIComponent(s.k); }
@@ -1051,9 +1062,10 @@ function pageAssess(keep) {
     var avg = function (f, list) { var v = list.filter(function (s) { return s[f] != null && !isNaN(s[f]); }); return v.length ? v.reduce(function (t, s) { return t + s[f]; }, 0) / v.length : 0; };
     var side = '<div class="panel" style="--c:' + C.asm + '"><h3>' + ico('clipboard') + 'Summary</h3>' + kvTable([['Working year', yearSel('aY', d.years, d.year)], ['Students', S.length], ['Results ready', S.filter(function (s) { return s.result; }).length],
       ['Left / withdrawn', S.filter(function (s) { return /left|withdraw/i.test(s.status); }).length], ['Pass mark', d.passMark <= 1 ? Math.round(d.passMark * 100) + '%' : d.passMark], ['My classes', esc(d.classes.join(', ') || '–')]]) + '</div>' +
-      shortcuts([['data-href="marks.html"', 'pencil', 'Marks entry'], ['data-avgo="results"', 'trophy', 'SAPS – class results'], ['data-avgo="cards"', 'page_facing_up', 'Report cards'], ['data-avgo="students"', 'student', 'Students'],
+      shortcuts([['data-href="marks.html"', 'pencil', 'Marks entry'], ['data-avgo="saps"', 'trophy', 'SAPS – marks summary'], ['data-avgo="cards"', 'page_facing_up', 'Report cards'], ['data-avgo="students"', 'student', 'Students'],
                  ['onclick="print()"', 'printer', 'Print this page'], ['data-modout="asm"', 'locked', 'Log out of Assessment']], C.asm);
     var main = '', q = AV.q.toLowerCase();
+    if (XLV[AV.view]) { $('#page').innerHTML = asmTop(d) + lay(side, XLV[AV.view](d)); asmBind(); if (AV.view === 'saps') loadSaps(d); return; }
     var inCls = function (s) { return (AV.cc === 'ALL' || s.cc === AV.cc) && (!q || (s.sur + ' ' + s.name + ' ' + s.id).toLowerCase().indexOf(q) >= 0); };
     var byClass = function (a, b) { return (d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) || a.sur.localeCompare(b.sur); };
     var filt = '<div class="bar">' + yearSel('aY', d.years, d.year) + '<select id="aC"><option value="ALL">All ' + (d.admin ? 'classes' : 'my classes') + '</option>' + opts(d.classes, AV.cc) + '</select><input id="aQ" placeholder="Search name or ID" value="' + esc(AV.q) + '"><button class="btn" onclick="print()">' + ico('printer') + 'Print</button></div>';
@@ -1065,7 +1077,7 @@ function pageAssess(keep) {
                ['AP1  |  AP2  AVERAGE', p1(avg('ap1', S)) + '  |  ' + p1(avg('ap2', S)), 'Assessment periods 1 and 2 · ' + d.year, '#2E8B57', 'chart_increasing'],
                ['TEACHERS & CLASSES', Object.keys(d.teachers).length, d.classes.length + ' classes', C.tch, 'teacher']];
       main += '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
-      var groups = [['MARKS & ASSESSMENT', [['marks.html', 'pencil', 'Marks Entry', 'Type marks for your class (works offline)'], ['@students', 'student', 'Student Entry', 'Add or correct students'], ['@results', 'trophy', 'SAPS', 'Student academic performance summary'], ['@sass', 'chart_increasing', 'SASS', 'Subject averages by class']]],
+      var groups = [['MARKS & ASSESSMENT', [['marks.html', 'pencil', 'Marks Entry', 'Type marks for your class (works offline)'], ['@students', 'student', 'Student Entry', 'Add or correct students'], ['@studentdb', 'card_index', 'Student Database', 'Every student and their details'], ['@saps', 'trophy', 'SAPS', 'Subject assessment periodic sheet'], ['@sass', 'chart_increasing', 'SASS', 'Subject averages by class']]],
                     ['CHECKLISTS – ATTITUDES, SKILLS & WORK HABITS', [['@checks', 'check_mark_button', 'Checklists', 'AWH (G4-6), KSA (G1-3), Skills (Prep)']]],
                     ['REPORT CARDS, ID CARDS & CERTIFICATES', [['@cards', 'page_facing_up', 'Report Cards', 'Open and print each student\'s report card'], ['marks.html', 'identification_card', 'ID Cards', 'Student and teacher ID cards with QR']]],
                     ['YEARLY SUMMARY', [['@transcript', 'memo', 'Transcript', 'One student, every subject'], ['@next', 'graduation_cap', 'Next Grade', 'Students who promote'], ['@repeat', 'counterclockwise_arrows_button', 'Repeat', 'Students who repeat'], ['@left', 'door', 'Left', 'Students who left'], ['@withdrawn', 'triangular_flag', 'Withdrawn', 'Students withdrawn']]]];
@@ -1103,11 +1115,11 @@ function pageAssess(keep) {
           '<table class="tbl x"><thead><tr><th>#</th><th>Subject</th><th style="text-align:right">AP1 %</th><th style="text-align:right">AP2 %</th></tr></thead><tbody>' +
           (names2.length ? names2.map(function (n, i) { var r = rep[i + 1] || [null, null]; return n ? '<tr>' + td(i + 1) + td(esc(n)) + td(p1(r[0]), 'n') + td(p1(r[1]), 'n') + '</tr>' : ''; }).join('') : '<tr><td colspan="4" class="muted">No subject results for this grade.</td></tr>') +
           '<tr class="tot"><td></td><td>Total marks · AP1 ' + esc(st.t1 == null ? '' : st.t1) + ' · AP2 ' + esc(st.t2 == null ? '' : st.t2) + ' · Year ' + esc(st.ty == null ? '' : st.ty) + '</td>' + td(p1(st.ap1), 'n') + td(p1(st.ap2), 'n') + '</tr></tbody></table>' +
-          '<div class="kpis" style="margin-top:12px"><div class="kpi" style="--c:' + C.asm + '"><small>YEAR %</small><b>' + p1(st.yr) + '</b><span>Days absent AP1 ' + esc(st.abs1 || 0) + ' · AP2 ' + esc(st.abs2 || 0) + '</span></div><div class="kpi" style="--c:#2E8B57"><small>RESULT</small><b>' + esc(st.result || '–') + '</b><span>' + (st.k && d.admin ? '<a href="' + esc(cardUrl(d, st)) + '" target="_blank" style="color:var(--gold)">Open report card</a>' : '') + '</span></div></div>';
+          '<div class="kpis" style="margin-top:12px"><div class="kpi" style="--c:' + C.asm + '"><small>YEAR %</small><b>' + p1(st.yr) + '</b><span>Days absent AP1 ' + esc(st.abs1 || 0) + ' · AP2 ' + esc(st.abs2 || 0) + '</span></div><div class="kpi" style="--c:#2E8B57"><small>RESULT</small><b>' + esc(st.result || '–') + '</b><span>' + '<a href="#" data-rc="' + esc(st.id) + '" style="color:var(--gold)">Open report card</a>' + '</span></div></div>';
       } else main += '<p class="muted">No students.</p>';
     } else {
       var list = S, title = '';
-      if (AV.view === 'results') { title = 'STUDENT ACADEMIC PERFORMANCE SUMMARY (SAPS)'; list = S.filter(function (s) { return !/left|withdraw/i.test(s.status); }); }
+      if (AV.view === 'results') { title = 'CLASS RESULTS – RANKED BY YEAR %'; list = S.filter(function (s) { return !/left|withdraw/i.test(s.status); }); }
       if (AV.view === 'cards') { title = 'REPORT CARDS'; list = S.filter(function (s) { return !/left|withdraw/i.test(s.status); }); }
       if (AV.view === 'next') { title = 'STUDENTS PROMOTED TO THE NEXT GRADE'; list = S.filter(function (s) { return /promote/i.test(s.result); }); }
       if (AV.view === 'repeat') { title = 'STUDENTS TO REPEAT'; list = S.filter(function (s) { return /repeat/i.test(s.result); }); }
@@ -1116,10 +1128,17 @@ function pageAssess(keep) {
       list = list.filter(inCls).sort(function (a, b) { return AV.view === 'results' ? (a.cc === b.cc ? (b.yr == null ? -1 : b.yr) - (a.yr == null ? -1 : a.yr) : d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) : byClass(a, b); });
       var pos = {}, rank = {};
       list.forEach(function (s) { pos[s.cc] = (pos[s.cc] || 0) + 1; rank[s.id] = s.yr == null ? '' : pos[s.cc]; });
-      main += filt + shTitle(title) + (AV.view === 'cards' && !d.admin ? '<div class="note">Report cards open for the Administrator. Teachers print them from Excel.</div>' : '') + '<div class="wrap"><table class="tbl x"><thead><tr>' +
-        (AV.view === 'results' ? '<th>Pos</th>' : '<th>#</th>') + '<th>ID</th><th>Surname</th><th>Name</th><th>Sex</th><th>Class</th><th style="text-align:right">AP1 %</th><th style="text-align:right">AP2 %</th><th style="text-align:right">Year %</th><th>Result</th><th>Status</th>' + (d.admin ? '<th class="noprint">Report card</th>' : '') + '</tr></thead><tbody>' +
+      if (AV.view === 'cards') {
+        if (AV.cc === 'ALL' && d.classes.length) AV.cc = d.classes[0];
+        list = list.filter(function (s) { return s.cc === AV.cc; });
+        filt = '<div class="bar">' + yearSel('aY', d.years, d.year) + '<select id="aC">' + opts(d.classes, AV.cc) + '</select><select id="aAP"><option value="1"' + (AV.ap === 1 ? ' selected' : '') + '>AP1 (Terms 1 & 2)</option><option value="2"' + (AV.ap === 2 ? ' selected' : '') + '>AP2 (Terms 3 & 4)</option></select>' +
+          '<input id="aQ" placeholder="Search name or ID" value="' + esc(AV.q) + '"><button class="btn pri" data-rcall="1">' + ico('printer') + 'Report cards – whole class</button></div>' +
+          '<p class="muted" style="margin:-6px 0 10px">The same design as the Excel report cards (Grades 4–6, Grades 1–3, Prep & Grade 1 AP1). Each card prints on one A4 page – choose <b>Save as PDF</b> in the print box to keep a copy.</p>';
+      }
+      main += filt + shTitle(title) + '<div class="wrap"><table class="tbl x"><thead><tr>' +
+        (AV.view === 'results' ? '<th>Pos</th>' : '<th>#</th>') + '<th>ID</th><th>Surname</th><th>Name</th><th>Sex</th><th>Class</th><th style="text-align:right">AP1 %</th><th style="text-align:right">AP2 %</th><th style="text-align:right">Year %</th><th>Result</th><th>Status</th>' + (d.admin || AV.view === 'cards' ? '<th class="noprint">Report card</th>' : '') + '</tr></thead><tbody>' +
         list.map(function (s, i) { return '<tr>' + td(AV.view === 'results' ? rank[s.id] : i + 1) + td(esc(s.id)) + td('<b>' + esc(s.sur) + '</b>') + td(esc(s.name)) + td(esc(s.sex)) + td(esc(s.cc)) + td(p1(s.ap1), 'n') + td(p1(s.ap2), 'n') + td('<b>' + p1(s.yr) + '</b>', 'n') + td(resTag(s)) + td(esc(s.status)) +
-          (d.admin ? '<td class="noprint">' + (s.k ? '<a class="btn" target="_blank" rel="noopener" href="' + esc(cardUrl(d, s)) + '">' + ico('page_facing_up') + 'Open</a>' : '') + '</td>' : '') + '</tr>'; }).join('') +
+          (AV.view === 'cards' ? '<td class="noprint"><button class="btn" data-rc="' + esc(s.id) + '">' + ico('page_facing_up') + 'Report card</button></td>' : d.admin ? '<td class="noprint">' + (s.k ? '<a class="btn" target="_blank" rel="noopener" href="' + esc(cardUrl(d, s)) + '">' + ico('page_facing_up') + 'Open</a>' : '') + '</td>' : '') + '</tr>'; }).join('') +
         (list.length ? '' : '<tr><td colspan="12" class="muted">No students in this list. Results come from Excel: work out the SARRS results, then Upload Online.</td></tr>') + '</tbody></table></div><p class="muted">' + list.length + ' students</p>';
     }
     $('#page').innerHTML = asmTop(d) + lay(side, main);
@@ -1137,7 +1156,7 @@ function pageHome(d) {
              ['STUDENTS ENROLLED', d.students, d.enrol.reduce(function (t, g) { return t + g.m; }, 0) + ' male · ' + d.enrol.reduce(function (t, g) { return t + g.f; }, 0) + ' female', C.stu, 'busts_in_silhouette'],
              ['AVERAGE YEAR %', (Math.round(d.avgYear * 10) / 10) + '%', d.promote + ' promote · ' + d.repeat + ' repeat', C.asm, 'trophy']];
     k.push(fin ? ['FINANCE BALANCE (YEAR)', money(fin.cash + fin.bank), 'Receipts less payments · ' + fin.year, C.fin, 'bank'] : ['SCHOOL REPORTS', d.reports, 'Saved this year', C.rpt, 'page_facing_up']);
-    var h = head('house', 'Dashboard', 'Overview', 'Welcome <b>' + esc(MAIN.name) + '</b> (' + roleText() + ') – choose a module to begin · Active year <b>' + d.year + '</b>' + (d._offline ? ' · <span style="color:#e0a400">offline copy</span>' : ''));
+    var h = head('house', 'Dashboard', 'Overview', 'Welcome <b>' + esc(MAIN.name) + '</b> (' + roleText() + ') – choose a module to begin · Active year <b>' + d.year + '</b>' + (d._offline ? ' · <span style="color:#b35c00">offline copy</span>' : ''));
     h += '<div class="kpis">' + k.map(function (x) { return '<div class="kpi" style="--c:' + x[3] + '"><small>' + x[0] + '</small><b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span>' + ico(x[4]) + '</div>'; }).join('') + '</div>';
     var groups = [['STUDENTS & ASSESSMENT', C.asm, 'bar_chart', ['assess', 'students']], ['TEACHERS & ADMINISTRATION', C.tch, 'teacher', ['Staff', 'Events', 'FormsLog']],
                   ['FINANCE, REPORTS & INFRASTRUCTURE', C.fin, 'money_bag', ['Finance', 'SchoolReports', 'Inventory']]];
@@ -1161,7 +1180,7 @@ function pageHome(d) {
       bars(d.gradeAvg.map(function (g) { return g.grade.replace('Grade ', 'G'); }), [{ name: 'AP1 %', color: '#2F80ED', data: d.gradeAvg.map(function (g) { return g.ap1; }) }, { name: 'AP2 %', color: '#2E8B57', data: d.gradeAvg.map(function (g) { return g.ap2; }) }], { max: 100 }) + '</div>';
     if (fin) main += '<div class="panel" style="--c:' + C.fin + '"><h3>' + ico('money_bag') + 'Receipts vs payments ' + fin.year + '</h3>' +
       bars(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'], [{ name: 'Receipts', color: '#2E8B57', data: fin.months.map(function (m) { return m.rin; }) }, { name: 'Payments', color: '#E46C0A', data: fin.months.map(function (m) { return m.rout; }) }], { k: true, h: 190 }) + '</div>';
-    var side = '<div class="panel" style="--c:' + C.home + '"><h3>' + ico('spiral_calendar') + 'Today</h3>' + kvTable([['Date', new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
+    var side = '<div id="homeMsg">' + homeMsgPanel() + '</div><div class="panel" style="--c:' + C.home + '"><h3>' + ico('spiral_calendar') + 'Today</h3>' + kvTable([['Date', new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
         ['Next event', nextEv ? esc(nextEv.title) + '<br><small class="muted">' + fmtDate(nextEv.date) + '</small>' : 'No upcoming events listed'], ['Days to go', days === null ? '' : days === 0 ? 'Today!' : days], ['Reports saved this year', d.reports], ['Waiting to upload', OUTBOX.length]]) + '</div>' +
       '<div class="panel" style="--c:' + C.home + '"><h3>' + ico('light_bulb') + 'Quick launch</h3>' +
       [['assess', 'pencil', 'Assessment'], ['Finance', 'money_bag', 'Finance'], ['Events', 'spiral_calendar', 'Admin Routines'], ['SchoolReports', 'warning', 'Write a report'], ['FormsLog', 'card_index', 'Other Forms']]
@@ -1171,6 +1190,443 @@ function pageHome(d) {
     $('#page').innerHTML = h + lay(side, main) + '<p class="muted" style="font-size:12px;margin-top:10px">● Ready  |  Active year ' + d.year + '  |  Finance (SFMS) and Assessment (SARRS) built in  |  THPS School Manager v' + VERSION + '  |  Property of TOM HOEY P/SCHL</p>';
     $$('[data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; });
   }).catch(function (e) { $('#page').innerHTML = '<div class="note bad">Cannot open the dashboard: ' + esc(errText(e)) + '</div>'; });
+}
+
+/* ------------------------------------------------------------------ REPORT CARDS: the same three designs as Excel (ASM_RC_G4_6, ASM_RC_G1_3, ASM_RC_PREP) */
+var RC_LISTS = {
+  AWH_A: ['Social Relationship', 'Punctuality', 'Attendance', 'Neatness', 'Discipline', 'Behaviour', '', ''],
+  AWH_H: ['Completes homework', 'Listens attentively', 'Begins work quickly', 'Follows given instructions', 'Reads confidently', 'Completes all assessable tasks', 'Participates well in group work', 'Tackles difficult tasks and situations', 'Works independently', 'Keeps books tidy'],
+  KSA_K: ['Recalling facts', 'Ability to respond', 'Contributing ideas', 'Sharing own ideas', 'Implementing ideas', 'Understanding concepts', 'Counting', ''],
+  KSA_S: ['Solving problems', 'Speaking & listening', 'Comprehension', 'Reading', 'Writing', 'Psychomotor skills', 'Acquiring life skills', 'Competency'],
+  KSA_A: ['Punctuality', 'Responsibility', 'General behaviour', 'Leadership', 'Hygiene', 'Attendance', 'Use of manners', 'Use of resources', 'Christian moral', ''],
+  KSA_H: ['Completes homework', 'Begins work quickly', 'Follows given instructions', 'Completes all assessable tasks', 'Participates well in group work', 'Tackles difficult tasks and situations', 'Works independently', ''],
+  PRE_E: ['Recalling facts', 'Ability to respond', 'Contributing ideas', 'Sharing own ideas', 'Implementing ideas', 'Understanding concepts', 'Counting', '', '', ''],
+  PRE_M: ['Solving problems', 'Speaking & listening', 'Comprehension', 'Reading', 'Writing', 'Psychomotor skills', 'Acquiring life skills', 'Competency', '', ''],
+  PRE_P: ['Punctuality', 'Responsibility', 'General behaviour', 'Leadership', 'Hygiene', 'Attendance', 'Use of manners', 'Use of resources', 'Christian moral', '']
+};
+var RC_CSS = '@page{size:A4;margin:8mm}*{box-sizing:border-box}body{margin:0;font:11px Arial,Helvetica,sans-serif;color:#000;background:#777}' +
+  '.card{width:194mm;min-height:279mm;margin:10px auto;background:#fff;border:2px solid #000;padding:5mm;page-break-after:always;position:relative}' +
+  '.hd{display:grid;grid-template-columns:44mm 1fr;gap:4mm;align-items:start}.hd img{width:44mm}.sch{font:700 22px Georgia,"Times New Roman",serif;text-align:center;letter-spacing:.5px;margin:2px 0}' +
+  '.sub{text-align:center;font-style:italic;font-size:10px;margin-bottom:3px}.ttl{text-align:center;font-weight:700;font-size:12px;background:#e6e6e6;border:1px solid #999;padding:4px;margin:3px 0}' +
+  'table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:2px 4px;font-size:10.5px;height:17px}th{font-size:9.5px}.blk th,tr.blk th{background:#262626;color:#fff;text-align:left;font-weight:700}' +
+  '.g th{background:#d9d9d9;color:#000;text-align:left}.c{text-align:center!important}.b{font-weight:700}.big{font-size:15px;font-weight:700}.nm{font-size:17px;font-weight:700;text-align:center;background:#e6e6e6}' +
+  '.nml{font:700 15px Georgia,serif;text-align:right;border:0}.tot td{background:#262626;color:#fff;font-weight:700;font-size:13px}.rate td{background:#bfbfbf;font-weight:700;font-style:italic}' +
+  '.vert{writing-mode:vertical-rl;transform:rotate(180deg);font-size:8.5px;text-align:center}.cm{background:#efefef;font-style:italic;font-size:11px;height:60px;vertical-align:top;padding:4px}' +
+  '.foot{margin-top:8mm;font-size:11px}.foot td{border:0;padding:3px 2px}.line{border-bottom:1px solid #000!important;text-align:center;font-weight:700}.ap{font-style:italic;font-weight:700;margin-top:6mm}' +
+  '.two{display:grid;grid-template-columns:1fr 1fr;gap:4mm}.gap{height:3mm}.bar{display:flex;align-items:flex-end;gap:6px;height:28mm;border-left:1px solid #999;border-bottom:1px solid #999;padding:0 4px;margin-top:14px}' +
+  '.bar div{flex:1;background:#555;position:relative}.bar span{position:absolute;top:-12px;left:-4px;right:-4px;text-align:center;font-size:8px}.bl{display:flex;gap:6px;padding:0 4px}.bl div{flex:1;font-size:7px;text-align:right;transform:rotate(-35deg);transform-origin:top right;white-space:nowrap}' +
+  '.tools{position:sticky;top:0;background:#222;color:#fff;padding:8px;text-align:center;z-index:5;font:700 14px Arial}.tools button{font:700 14px Arial;padding:8px 16px;margin:0 4px;border-radius:8px;border:0;cursor:pointer}' +
+  '@media print{body{background:#fff}.tools{display:none}.card{margin:0;border:2px solid #000}}';
+function rcCalc(D) {
+  var S = D.setup || {}, bands = S.bands && S.bands.length ? S.bands : [], rates = S.rates && S.rates.length ? S.rates : [];
+  if (!bands.length) bands = [{ min: 75, max: 100, grade: 'A', level: 'Excellent', comment: '' }, { min: 60, max: 74, grade: 'B', level: 'Very Good', comment: '' }, { min: 45, max: 59, grade: 'C', level: 'Satisfactory', comment: '' }, { min: 30, max: 44, grade: 'D', level: 'Needs Improvement', comment: '' }, { min: 0, max: 29, grade: 'E', level: 'Unsatisfactory', comment: '' }];
+  if (!rates.length) rates = [{ code: 'A', level: 'Very Good', comment: '' }, { code: 'B', level: 'Good', comment: '' }, { code: 'C', level: 'Satisfactory', comment: '' }, { code: 'D', level: 'Needs Improvement', comment: '' }];
+  var band = function (pct) { var n = bands.filter(function (b) { return b.min > pct * 100; }).length; return bands[Math.min(n, bands.length - 1)]; };
+  var lists = {}; Object.keys(RC_LISTS).forEach(function (k) { lists[k] = (S.lists && S.lists[k] && S.lists[k].some(function (x) { return x; })) ? S.lists[k] : RC_LISTS[k]; });
+  return { bands: bands, rates: rates, band: band, lists: lists };
+}
+function rcKind(grade, ap) { var g = grade === 'Prep' ? 0 : Number(String(grade).replace(/\D/g, '')) || 0; return g === 0 || (g === 1 && ap === 1) ? 'PREP' : g <= 3 ? 'G13' : 'G46'; }
+function rcOne(D, s, R) {
+  var ap = D.ap, max = D.gm ? (ap === 1 ? D.gm.max1 : D.gm.max2) : 0, kind = rcKind(D.grade, ap), ck = s.check, rr = ck ? ck.r : null;
+  var rate = function (i) { return !rr ? '' : (rr[i] ? esc(rr[i]) : '–'); };
+  var score = function (st, i) { var x = (st.subj || {})[i + 1]; if (!x) return null; var v = ap === 1 ? x.s1 : x.s2; return v === '' || v == null ? null : Number(v); };
+  var subjRows = [];
+  for (var si = 0; si < Math.max(8, D.subjects.length); si++) {
+    var nm = D.subjects[si] || '', sc = score(s, si), pc = sc == null || !max ? null : sc / max, pos = '';
+    if (sc != null) { var all = D.students.map(function (o) { return score(o, si); }).filter(function (v) { return v != null; }); pos = (all.filter(function (v) { return v > sc; }).length + 1) + '/' + all.length; }
+    subjRows.push({ no: si + 1, nm: nm, sc: sc, pc: pc, gr: pc == null ? '' : R.band(pc).grade, pos: pos });
+  }
+  var totSc = subjRows.some(function (x) { return x.sc != null; }) ? subjRows.reduce(function (t, x) { return t + (x.sc || 0); }, 0) : null;
+  var tp = ap === 1 ? s.p1 : s.p2, tpc = tp == null ? null : tp / 100, tpos = '';
+  if (tpc != null) { var act = D.students.filter(function (o) { return /^active$/i.test(o.status) && (ap === 1 ? o.p1 : o.p2) != null; }); tpos = (act.filter(function (o) { return (ap === 1 ? o.p1 : o.p2) > tp; }).length + 1) + '/' + act.length; }
+  var tb = tpc == null ? null : R.band(tpc);
+  var pctTxt = function (v) { return v == null ? '' : Math.round(v * 100) + '%'; };
+  var name = esc(String(s.sur).toUpperCase() + ' ' + s.name), apWord = ap === 1 ? 'ONE' : 'TWO', terms = ap === 1 ? 'Terms 1 & 2' : 'Terms 3 & 4';
+  var logo = '<img src="' + location.href.replace(/[^/]*$/, '') + 'img/school.png" alt="">';
+  var comment = ck && ck.comment ? ck.comment : (kind === 'PREP' ? '' : (tb ? tb.comment : ''));
+  var days = ck ? esc(ck.days === '' || ck.days == null ? 0 : ck.days) : '–';
+  var foot = function (who) { return '<table class="foot"><tr><td style="width:30%" class="b">Class Teacher:</td><td class="line">' + esc(D.teacher) + '</td><td style="width:20%"></td></tr><tr><td class="b">Signature:</td><td class="line">&nbsp;</td><td></td></tr><tr><td class="b">Date:</td><td class="line" style="font-weight:400">' + esc(D.today) + '</td><td></td></tr></table><div class="ap">' + who + '</div>'; };
+  var listRows = function (arr, off, n) { var h = ''; for (var i = 0; i < n; i++) h += '<tr><td class="c" style="width:7mm">' + (arr[i] ? i + 1 : '') + '</td><td>' + esc(arr[i] || '') + '</td><td class="c b" style="width:22mm">' + (arr[i] ? rate(off + i) : '') + '</td></tr>'; return h; };
+  var crit = R.rates.map(function (r) { return r.code + ' = ' + String(r.level).toUpperCase(); }).join(',  ');
+  var grey = 'background:#d9d9d9;color:#000';
+  var h = '<div class="card">';
+  if (kind === 'G46') {
+    h += '<div class="hd">' + logo + '<div><div class="sch">' + esc(D.school) + '</div><div class="ttl">ASSESSMENT PERIOD ' + apWord + ' (0' + ap + ')  –  STUDENT REPORT SHEET (' + terms + ')</div>' +
+      '<table><tr class="blk"><th class="c">No.</th><th class="c">GRADE</th><th class="c">YEAR</th><th class="c">Sex</th><th class="c" colspan="2">Class</th><th class="c">ID No#</th></tr>' +
+      '<tr class="big"><td class="c">' + esc(s.no) + '</td><td class="c">' + esc(String(D.grade).replace(/\D/g, '')) + '</td><td class="c">' + D.year + '</td><td class="c">' + esc(s.sex) + '</td><td class="c" colspan="2">' + esc(D.cc) + '</td><td class="c" style="font-size:11px">' + esc(s.id) + '</td></tr>' +
+      '<tr><td colspan="2" class="nml">Name:</td><td colspan="4" class="nm">' + name + '</td><td class="c b" style="font-size:9px;text-decoration:underline">SENIOR<br>PRIMARY</td></tr></table></div></div><div class="gap"></div>';
+    var partC = '<table class="blk"><tr><th colspan="2">PART C: PUPIL\'S PERSONAL ATTITUDE ASSESSMENT</th><th class="c" style="' + grey + '">GRADING</th></tr>' + listRows(R.lists.AWH_A, 0, 8) + '</table><div class="gap"></div>' +
+      '<table class="blk"><tr><th colspan="2">PART D: PUPIL\'S LEARNING &amp; WORKING HABITS</th><th class="c" style="' + grey + '">GRADING</th></tr>' + listRows(R.lists.AWH_H, 8, 10) + '</table><div class="gap"></div>' +
+      '<table><tr><td class="b" style="background:#d9d9d9;font-size:9px">NUMBER OF DAYS ABSENT WITHOUT GOOD REASON</td><td class="c big" style="width:20mm">' + days + '</td></tr></table><div class="gap"></div>' +
+      '<table class="blk"><tr><th class="c">PERSONAL ATTITUDE, LEARNING AND WORKING HABITS CRITERIA</th></tr><tr><td class="c b" style="background:#e6e6e6;height:34px">' + esc(crit) + '</td></tr></table>';
+    var partA = '<table><tr class="blk"><th colspan="4">PART A: ACADEMIC ASSESSMENT REPORT</th><th rowspan="3" class="vert" style="' + grey + '">GRADING</th><th rowspan="3" class="vert" style="' + grey + '">POSITION</th></tr>' +
+      '<tr class="g"><th colspan="2">SUBJECT</th><th class="c">SCORE</th><th class="c">PERCENT</th></tr><tr class="g"><th colspan="2">ASSESSMENT AREA</th><th class="c">' + (max || '') + '</th><th class="c">%</th></tr>' +
+      subjRows.map(function (x) { return '<tr style="height:23px"><td class="c b" style="width:7mm">' + x.no + '</td><td class="b">' + esc(String(x.nm).toUpperCase()) + '</td><td class="c b">' + (x.sc == null ? '' : x.sc) + '</td><td class="c">' + pctTxt(x.pc) + '</td><td class="c b">' + x.gr + '</td><td class="c">' + x.pos + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td colspan="2">TOTAL SCORE</td><td class="c">' + (totSc == null ? '' : totSc) + '</td><td class="c">' + pctTxt(tpc) + '</td><td class="c">' + (tb ? tb.grade : '') + '</td><td class="c" style="font-size:11px">' + tpos + '</td></tr>' +
+      '<tr class="rate"><td colspan="3" style="font-size:9px;font-style:normal">ACADEMIC PERFORMANCE RATING:</td><td colspan="3" class="c">' + (tb ? esc(tb.level) : '') + '</td></tr></table>';
+    var gr = subjRows.filter(function (x) { return x.nm; });
+    var graph = '<div style="border:1px solid #ccc;margin-top:3mm;padding:3mm"><div class="c b" style="font-size:13px">Academic Performance Graph</div><div class="bar">' +
+      gr.map(function (x) { var v = x.pc == null ? 0 : Math.max(0, Math.min(1, x.pc)); return '<div style="height:' + (v * 100) + '%"><span>' + pctTxt(x.pc) + '</span></div>'; }).join('') + '</div><div class="bl" style="height:16mm">' +
+      gr.map(function (x) { return '<div>' + esc(String(x.nm).toUpperCase()) + '</div>'; }).join('') + '</div></div>';
+    h += '<div class="two"><div>' + partA + graph + '</div><div>' + partC + '</div></div><div class="gap"></div>' +
+      '<table class="blk"><tr><th class="c">TOTAL ACADEMIC RESULTS EVALUATIVE COMMENT</th></tr><tr><td class="cm">' + esc(comment) + '</td></tr></table><div class="gap"></div>' +
+      '<table><tr class="blk"><th class="c" colspan="4">ACADEMIC &amp; SKILLS ASSESSMENT CRITERIA</th></tr><tr class="g"><th class="c">Percentage</th><th class="c">Key</th><th class="c">Grading</th><th class="c">Comment</th></tr>' +
+      R.bands.map(function (b) { return '<tr><td class="c b">' + b.min + ' – ' + b.max + '</td><td class="c b">' + esc(b.grade) + '</td><td class="c">' + esc(b.level) + '</td><td style="font-size:9px">' + esc(b.comment) + '</td></tr>'; }).join('') + '</table>' +
+      foot('Sighted &amp; Approved for reporting by: _________________________________');
+  } else if (kind === 'G13') {
+    h += '<div class="hd">' + logo + '<div><div class="sch">' + esc(D.school) + '</div><div class="sub">' + esc((D.setup && D.setup.schoolLine) || 'Middle Fly District, Western Province') + '</div>' +
+      '<div class="ttl">ASSESSMENT PERIOD ' + apWord + '  –  JUNIOR PRIMARY STUDENT REPORT</div>' +
+      '<table><tr class="blk"><th class="c">No.</th><th class="c" colspan="2">ID#</th><th class="c">GRADE</th><th class="c">YEAR</th><th class="c">Sex</th><th class="c">Class</th></tr>' +
+      '<tr class="big"><td class="c">' + esc(s.no) + '</td><td class="c" colspan="2">' + esc(s.id) + '</td><td class="c">' + esc(String(D.grade).replace(/\D/g, '')) + '</td><td class="c">' + D.year + '</td><td class="c">' + esc(s.sex) + '</td><td class="c">' + esc(D.cc) + '</td></tr></table></div></div>' +
+      '<table style="margin-top:2mm"><tr><td class="nml" style="width:60mm">Name:</td><td class="nm">' + name + '</td></tr></table><div class="gap"></div>';
+    var sec = function (title, arr, off, n) { var t = title ? '<tr class="g"><th colspan="2">' + title + '</th></tr>' : ''; for (var i = 0; i < n; i++) t += '<tr><td>' + esc(arr[i] || '') + '</td><td class="c b" style="width:20mm">' + (arr[i] ? rate(off + i) : '') + '</td></tr>'; return t; };
+    var left = '<table><tr class="blk"><th colspan="2">PART A: KNOWLEDGE, SKILLS, ATTITUDE</th></tr>' + sec('KNOWLEDGE', R.lists.KSA_K, 0, 8) + sec('SKILLS', R.lists.KSA_S, 8, 8) + sec('ATTITUDE', R.lists.KSA_A, 16, 10) + '</table><div class="gap"></div>' +
+      '<table><tr class="blk"><th colspan="2">PART B: LEARNING &amp; WORKING HABITS</th></tr>' + sec('', R.lists.KSA_H, 26, 8) + '</table>';
+    var right = '<table><tr class="blk"><th colspan="4">PART C: ACADEMIC ASSESSMENT REPORT</th><th rowspan="3" class="vert" style="' + grey + '">GRADING</th><th rowspan="3" class="vert" style="' + grey + '">POSITION</th></tr>' +
+      '<tr class="g"><th colspan="2">SUBJECT</th><th class="c">SCORE</th><th class="c">PERCENT</th></tr><tr class="g"><th colspan="2">ASSESSMENT AREA</th><th class="c">' + (max || '') + '</th><th class="c">%</th></tr>' +
+      subjRows.map(function (x) { return '<tr style="height:30px"><td class="c b" style="width:7mm">' + x.no + '</td><td class="b" style="font-size:9.5px">' + esc(String(x.nm).toUpperCase()) + '</td><td class="c big">' + (x.sc == null ? '' : x.sc) + '</td><td class="c">' + pctTxt(x.pc) + '</td><td class="c big">' + x.gr + '</td><td class="c">' + x.pos + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td colspan="2">TOTAL SCORE</td><td class="c">' + (totSc == null ? '' : totSc) + '</td><td class="c">' + pctTxt(tpc) + '</td><td class="c">' + (tb ? tb.grade : '') + '</td><td class="c" style="font-size:11px">' + tpos + '</td></tr>' +
+      '<tr class="rate"><td colspan="4" style="font-size:9px;font-style:normal">ACADEMIC PERFORMANCE RATING:</td><td colspan="2" class="c">' + (tb ? esc(tb.level) : '') + '</td></tr></table><div class="gap"></div>' +
+      '<table><tr class="blk"><th class="c">GENERAL COMMENTS (Academic Performance &amp; Behaviour)</th></tr><tr class="g"><th>Academic Performance:</th></tr><tr><td class="cm" style="height:70px">' + esc(comment) + '</td></tr></table>' +
+      '<table><tr><td class="b" style="text-align:right;background:#e6e6e6">NO# OF DAYS ABSENT:</td><td class="c big" style="width:18mm">' + days + '</td></tr></table><div class="gap"></div>' +
+      '<table><tr class="blk"><th>ACADEMIC RESULTS CRITERIA (% &amp; Grading)</th></tr>' + R.bands.map(function (b) { return '<tr><td style="background:#efefef">' + esc(b.grade + ' = ' + String(b.level).toUpperCase() + '   (' + b.min + ' – ' + b.max + '%)') + '</td></tr>'; }).join('') +
+      '<tr class="blk"><th style="font-size:8.5px">PERSONAL ATTITUDE, LEARNING &amp; WORKING HABITS PLUS SKILLS CRITERIA</th></tr><tr><td class="b" style="background:#efefef;height:30px">' + esc(crit) + '</td></tr></table>';
+    h += '<div class="two"><div>' + left + '</div><div>' + right + '</div></div>' + foot('Sighted &amp; Approved for Parent Conferencing by: ______________________   (HM, DHM, SSM, ST)');
+  } else {
+    var allR = rr ? rr.slice(0, 30) : [], cnt = function (code) { return allR.filter(function (x) { return x === code; }).length; };
+    var ov = '', ovl = '';
+    if (ck && ck.avg !== '' && ck.avg != null) { var k = Math.min(4, Math.max(1, 5 - Math.round(Number(ck.avg)))); ov = (R.rates[k - 1] || {}).code || ''; ovl = (R.rates[k - 1] || {}).level || ''; }
+    if (!comment && ov) comment = (R.rates.filter(function (r) { return r.code === ov; })[0] || {}).comment || '';
+    var g1 = D.grade !== 'Prep';
+    h += '<div class="hd">' + logo + '<div><div class="sch">' + esc(D.school) + '</div><div class="ttl">' + (g1 ? 'GRADE 1' : 'PREPARATORY') + ' SKILLS REPORT CARD  –  ASSESSMENT PERIOD ' + apWord + ' (' + terms + ')</div>' +
+      '<table><tr class="blk"><th class="c" style="width:20%">No.</th><th class="c">ID#</th><th class="c" style="width:20%">Class</th></tr><tr class="big"><td class="c">' + esc(s.no) + '</td><td class="c">' + esc(s.id) + '</td><td class="c">' + esc(D.cc) + '</td></tr></table>' +
+      '<table style="margin-top:2mm"><tr><td class="nml" style="width:30mm">Name:</td><td class="nm">' + name + '</td></tr></table></div></div><div class="gap"></div><div class="gap"></div>';
+    var part = function (t, arr, off) { return '<table><tr class="blk"><th colspan="2">' + t + '</th><th class="c" style="' + grey + ';width:20mm">RATING</th></tr>' + listRows(arr, off, 10) + '</table>'; };
+    var sum = '<table><tr class="blk"><th colspan="2">SUMMARY OF ACHIEVEMENT</th></tr>' + R.rates.map(function (r) { return '<tr><td>Number of ' + esc(r.code) + ' ratings  (' + esc(r.level) + ')</td><td class="c big" style="width:20mm">' + (ck ? cnt(r.code) : '') + '</td></tr>'; }).join('') +
+      '<tr style="background:#e6e6e6"><td class="b">Overall rating</td><td class="c big">' + ov + '</td></tr><tr style="background:#e6e6e6"><td class="b">Overall level</td><td class="c b" style="font-size:9px">' + esc(ovl) + '</td></tr>' +
+      '<tr style="background:#e6e6e6"><td class="b">Number of days absent</td><td class="c big">' + days + '</td></tr><tr style="background:#e6e6e6"><td class="b">Year progress (skills average, all APs)</td><td class="c b">' + (s.yp == null ? '' : Math.round(s.yp) + '%') + '</td></tr>' +
+      '<tr><td colspan="2" class="b" style="background:#efefef">' + esc(R.rates.map(function (r) { return r.code + ' = ' + r.level; }).join(',  ')) + '</td></tr></table>';
+    h += '<div class="two"><div>' + part('PART A: ENGLISH', R.lists.PRE_E, 0) + '</div><div>' + part('PART B: MATHEMATICS', R.lists.PRE_M, 10) + '</div></div><div class="gap"></div><div class="gap"></div>' +
+      '<div class="two"><div>' + part('PART C: PERSONAL &amp; SOCIAL (PSY)', R.lists.PRE_P, 20) + '</div><div>' + sum + '</div></div><div class="gap"></div>' +
+      '<table class="blk"><tr><th class="c">TEACHER\'S COMMENT</th></tr><tr><td class="cm">' + esc(comment) + '</td></tr></table>' + foot('Sighted &amp; Approved for reporting by: ____________________________________');
+  }
+  return h + '</div>';
+}
+function openReportCards(cc, ap, onlyId) {
+  var w = window.open('', '_blank');
+  if (!w) return toast('Allow pop-ups to open the report cards.', 1);
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Report cards ' + esc(cc) + '</title><style>' + RC_CSS + '</style></head><body><div class="tools">Loading report cards…</div></body></html>'); w.document.close();
+  call('apiReportCards', AUTH, AV.year || YEAR, cc, ap).then(function (D) {
+    var R = rcCalc(D), list = D.students.filter(function (s) { return onlyId ? s.id === onlyId : /^active$/i.test(s.status); });
+    w.document.body.innerHTML = '<div class="tools">' + esc(D.cc) + ' · AP' + D.ap + ' · ' + list.length + ' report card' + (list.length === 1 ? '' : 's') + '  <button onclick="print()">Print / Save as PDF</button><button onclick="close()">Close</button></div>' +
+      (list.length ? list.map(function (s) { return rcOne(D, s, R); }).join('') : '<div class="card"><p>No students in ' + esc(cc) + '.</p></div>');
+    w.document.title = 'Report cards ' + D.cc + ' AP' + D.ap + ' ' + D.year;
+  }).catch(function (e) { w.document.body.innerHTML = '<div class="tools">Cannot open the report cards: ' + esc(errText(e)) + '</div>'; });
+}
+
+/* ================================================================== v13: sheets drawn like the Excel workbook (white sheet, grey lines, dark title bars) */
+function xlFrame(icon, title, color, picks, lines) {
+  return '<div class="xl" style="--c:' + color + '"><div class="xlh"><img src="img/province.png" alt=""><div>' +
+    '<div class="xb1">WESTERN PROVINCIAL ADMINISTRATION</div><div class="xb2">DIVISION OF EDUCATION – Middle Fly District</div>' +
+    '<div class="xb3">' + esc(lines && lines.sys || 'SCHOOL ASSESSMENT, RECORDING & REPORTING SYSTEM – Based on SBC') + '</div><div class="xb2 b">TOM HOEY PRIMARY SCHOOL</div>' +
+    '<div class="xt">' + ico(icon) + esc(title) + '</div></div><img src="img/school.png" alt=""></div>' + (picks ? '<div class="xp noprint">' + picks + '</div>' : '') + '</div>';
+}
+function xlPick(label, inner) { return '<label><span>' + label + '</span>' + inner + '</label>'; }
+function xlBar(t) { return '<div class="xbar">' + t + '</div>'; }
+function bandOf(bands, pct) { if (pct == null || isNaN(pct)) return null; var n = bands.filter(function (b) { return b.min > pct * 100; }).length; return bands[Math.min(n, bands.length - 1)]; }
+function asmBands(d) { return d.setup && d.setup.bands && d.setup.bands.length ? d.setup.bands : rcCalc({}).bands; }
+function xlClassPick(d, allowAll) { return '<select id="aC">' + (allowAll ? '<option value="ALL">All</option>' : '') + opts(d.classes, AV.cc) + '</select>'; }
+function xlApPick() { return '<select id="aAP"><option value="1"' + (AV.ap === 1 ? ' selected' : '') + '>AP1</option><option value="2"' + (AV.ap === 2 ? ' selected' : '') + '>AP2</option></select>'; }
+function needClass(d) { if (AV.cc === 'ALL' || d.classes.indexOf(AV.cc) < 0) AV.cc = d.classes[0] || 'ALL'; }
+function gradeOfCc(cc) { return /^prep/i.test(cc) ? 'Prep' : 'Grade ' + String(cc).charAt(0); }
+
+/* ---------------- SAPS ---------------- */
+function xlSaps(d) {
+  needClass(d);
+  var g = gradeOfCc(AV.cc), names = d.subjects[g] || [];
+  if (!AV.subj || AV.subj > Math.max(1, names.length)) AV.subj = 1;
+  var picks = xlPick('Subject', '<select id="aSub">' + (names.length ? names.map(function (n, i) { return '<option value="' + (i + 1) + '"' + (AV.subj === i + 1 ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') : '<option>Skills (no subjects)</option>') + '</select>') +
+    xlPick('Year', yearSel('aY', d.years, d.year)) + xlPick('Class', xlClassPick(d)) + xlPick('Term', '<b>' + (AV.ap === 1 ? 'Term 1 & 2' : 'Term 3 & 4') + '</b>') + xlPick('AP No#', xlApPick()) +
+    '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button>';
+  return xlFrame('trophy', 'SUBJECT ASSESSMENT PERIODIC SHEET (SAPS) – MARKS SUMMARY', C.asm, picks) + '<div id="sapsBody"><p class="muted">Loading the marks…</p></div>';
+}
+function loadSaps(d) {
+  var el = $('#sapsBody'); if (!el) return;
+  call('apiSaps', AUTH, d.year, AV.cc, AV.subj, AV.ap).then(function (S) {
+    var bands = S.bands && S.bands.length ? S.bands : asmBands(d), max = S.gm ? (S.ap === 1 ? S.gm.max1 : S.gm.max2) : 0, mode = S.gm ? (S.ap === 1 ? S.gm.mode1 : S.gm.mode2) : '';
+    var base = (S.ap - 1) * 16, wIdx = [1, 2, 3, 4, 9, 10, 11, 12].map(function (i) { return base + i - 1; }), tIdx = [5, 6, 7, 8, 13, 14, 15, 16].map(function (i) { return base + i - 1; });
+    var tm = S.task ? S.task.max : [], wp = S.weeklyPct * 100, tp = S.testPct * 100, subjName = S.subjects[S.subj - 1] || '';
+    var hdr = '<div class="xinfo"><span><b>' + esc(subjName) + '</b></span><span>Year <b>' + S.year + '</b></span><span>Grade <b>' + esc(S.grade) + '</b></span><span>Class <b>' + esc(S.cc) + '</b></span><span>Term <b>' + (S.ap === 1 ? 'Term 1 & 2' : 'Term 3 & 4') + '</b></span><span>AP <b>AP' + S.ap + '</b></span>' +
+      '<span>Teacher <b>' + esc(S.teacher) + '</b></span><span>Supervisor <b>' + esc(S.supervisor || '') + '</b></span></div>';
+    if (mode && mode !== 'Marks') { el.innerHTML = hdr + xlBar('SUBJECT ASSESSMENT PERIODIC SHEET – ' + esc(S.grade) + ' – AP' + S.ap + ' is a SKILLS period') + '<p class="muted">This class is assessed with the skills checklist this period. Open <b>Checklists</b>.</p>'; return; }
+    var sum = function (arr, idx) { var s = 0, n = 0; idx.forEach(function (i) { if (arr[i] != null) { s += arr[i]; n++; } }); return n ? s : null; };
+    var wMax = sum(tm, wIdx), tMax = sum(tm, tIdx);
+    var rows = S.students.map(function (st, k) {
+      var w = sum(st.m, wIdx), t = sum(st.m, tIdx), wk = w != null && wMax ? w / wMax * wp : null, ts = t != null && tMax ? t / tMax * tp : null, tot = null;
+      if (wk != null || ts != null) tot = ((wk != null ? w / wMax * S.weeklyPct : 0) + (ts != null ? t / tMax * S.testPct : 0)) / ((wk != null ? S.weeklyPct : 0) + (ts != null ? S.testPct : 0)) * 100;
+      var b = tot == null ? null : bandOf(bands, tot / 100);
+      return '<tr><td class="c">' + (st.no || k + 1) + '</td><td>' + esc(st.id) + '</td><td>' + esc(String(st.sur).toUpperCase()) + '</td><td>' + esc(st.name) + '</td><td class="c">' + esc(st.sex) + '</td><td class="c">' + esc(S.cc) + '</td>' +
+        '<td class="c b">' + (b ? b.grade : '') + '</td><td class="c b xg">' + (tot == null ? '' : Math.round(tot)) + '</td><td class="c">' + (wk == null ? '' : Math.round(wk)) + '</td><td class="c">' + (ts == null ? '' : Math.round(ts)) + '</td>' +
+        '<td class="c b xg">' + (tot == null || !max ? '' : Math.round(tot / 100 * max)) + '</td>' +
+        wIdx.concat(tIdx).map(function (i) { return '<td class="c">' + (st.m[i] == null ? '' : st.m[i]) + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    el.innerHTML = hdr + xlBar('SUBJECT ASSESSMENT PERIODIC SHEET  –  ' + esc(String(subjName).toUpperCase()) + '  –  ' + esc(S.grade) + ' ' + esc(String(S.cc).replace(/^\d/, '')) + '  –  ' + (S.ap === 1 ? 'Term 1 & 2' : 'Term 3 & 4') + ' (AP' + S.ap + ')  –  ' + S.year) +
+      '<div class="wrap xw"><table class="xt2"><thead><tr><th colspan="11" class="xi">Weekly = (W1+…+Wn) ÷ Weekly Total × ' + wp + '    Test = (T1+…+Tn) ÷ Test Total × ' + tp + '    Total = Weekly + Test</th><th colspan="8" class="xd">WEEKLY MARKS (W1 – W8)</th><th colspan="8" class="xd">END-OF-TERM TESTS (T1 – T8)</th></tr>' +
+      '<tr>' + ['No', 'ID#', 'Surname', 'Name', 'Sex', 'Class', 'Achieve-ment Grade', 'TOTAL (100)', 'WEEKLY (' + wp + ')', 'TESTS (' + tp + ')', 'SCORE /' + max].map(function (x) { return '<th>' + x + '</th>'; }).join('') +
+      ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'].map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr>' +
+      '<tr class="xmax"><td colspan="7" style="text-align:right">Maximum marks for each task ▶</td><td class="c">100</td><td class="c">' + wp + '</td><td class="c">' + tp + '</td><td class="c">' + max + '</td>' +
+      wIdx.concat(tIdx).map(function (i) { return '<td class="c">' + (tm[i] == null ? '' : tm[i]) + '</td>'; }).join('') + '</tr></thead><tbody>' + rows +
+      (S.students.length ? '' : '<tr><td colspan="27" class="muted">No students.</td></tr>') + '</tbody></table></div><p class="muted">Marks come from Marks Entry (online) and Excel. ' + S.students.length + ' students.</p>';
+  }).catch(function (e) { el.innerHTML = '<div class="note bad">' + esc(errText(e)) + '</div>'; });
+}
+
+/* ---------------- SASS ---------------- */
+function xlSass(d) {
+  needClass(d);
+  var g = gradeOfCc(AV.cc), names = d.subjects[g] || [], bands = asmBands(d), gm = (d.gradeMax || {})[g] || {}, max = AV.ap === 1 ? gm.max1 : gm.max2, mode = AV.ap === 1 ? gm.mode1 : gm.mode2;
+  var picks = xlPick('Year', yearSel('aY', d.years, d.year)) + xlPick('Grade', '<b>' + esc(g) + '</b>') + xlPick('Class', xlClassPick(d)) + xlPick('Term', '<b>' + (AV.ap === 1 ? 'Term 1 & 2' : 'Term 3 & 4') + '</b>') + xlPick('AP No#', xlApPick()) +
+    '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button>';
+  var h = xlFrame('chart_increasing', 'SASS – SUBJECTS ASSESSMENT SUMMARY SHEET', C.asm, picks);
+  h += '<div class="xinfo"><span>Assessment Co-ordinator <b>' + esc(d.coord || '') + '</b></span><span>Class Teacher <b>' + esc(d.teachers[AV.cc] || '') + '</b></span><span>Supervisor <b>' + esc((d.supervisors || {})[AV.cc] || '') + '</b></span></div>';
+  h += xlBar(esc(String(g).toUpperCase()) + ' ASSESSMENT PERIOD ' + (AV.ap === 1 ? 'ONE' : 'TWO') + '  –  ' + d.year + '  (Class ' + esc(AV.cc) + ')');
+  if (!names.length || (mode && mode !== 'Marks')) return h + '<div class="xsub">SKILLS ASSESSMENT – no subject marks this period. Open Checklists.</div>';
+  var list = d.students.filter(function (s) { return s.cc === AV.cc && /^active$/i.test(s.status || 'Active'); }).sort(function (a, b) { return (Number(a.no) || 999) - (Number(b.no) || 999) || a.sur.localeCompare(b.sur); });
+  var sc = function (s, i) { var r = (d.reports[s.id] || {})[i + 1]; return r ? r[AV.ap - 1] : null; };   // percent per subject
+  var score = function (s, i) { var p = sc(s, i); return p == null || p === '' ? null : Math.round(Number(p) / 100 * (max || 0)); };
+  var tot = function (s) { var p = AV.ap === 1 ? s.ap1 : s.ap2; return p; };
+  var act = list.filter(function (s) { return tot(s) != null; });
+  var subTot = (max || 0) * names.length;
+  var rows = list.map(function (s, k) {
+    var o = '<tr><td class="c">' + (s.no || k + 1) + '</td><td>' + esc(s.id) + '</td><td>' + esc(String(s.sur).toUpperCase()) + '</td><td>' + esc(s.name) + '</td><td class="c">' + esc(s.sex) + '</td><td class="c">' + esc(String(s.cc).replace(/^\d/, '')) + '</td>';
+    names.forEach(function (n, i) { var v = score(s, i), p = sc(s, i), b = p == null || p === '' ? null : bandOf(bands, Number(p) / 100); o += '<td class="c b">' + (v == null ? '' : v) + '</td><td class="c">' + (p == null || p === '' ? '' : Math.round(p) + '%') + '</td><td class="c b' + (b && b.grade === 'E' ? ' red' : '') + '">' + (b ? b.grade : '') + '</td>'; });
+    var tp = tot(s), tb = tp == null ? null : bandOf(bands, tp / 100), pos = tp == null ? '' : act.filter(function (o2) { return tot(o2) > tp; }).length + 1;
+    return o + '<td class="c b xdk">' + (tp == null ? '' : Math.round(tp / 100 * subTot)) + '</td><td class="c xdk">' + (tp == null ? '' : Math.round(tp) + '%') + '</td><td class="c b xdk">' + (tb ? tb.grade : '') + '</td><td class="c b xdk">' + pos + '</td></tr>';
+  }).join('');
+  var avgRow = '<tr class="xmax"><td colspan="6" style="text-align:right">CLASS AVERAGE</td>' + names.map(function (n, i) { var v = list.map(function (s) { return sc(s, i); }).filter(function (x) { return x != null && x !== ''; }).map(Number); var a = v.length ? v.reduce(function (p, q) { return p + q; }, 0) / v.length : null; return '<td class="c b">' + (a == null ? '' : Math.round(a / 100 * max)) + '</td><td class="c">' + (a == null ? '' : Math.round(a) + '%') + '</td><td></td>'; }).join('') +
+    (function () { var v = act.map(tot); var a = v.length ? v.reduce(function (p, q) { return p + q; }, 0) / v.length : null; return '<td class="c b">' + (a == null ? '' : Math.round(a / 100 * subTot)) + '</td><td class="c">' + (a == null ? '' : Math.round(a) + '%') + '</td><td></td><td></td>'; })() + '</tr>';
+  var cnt = bands.map(function (b) { return '<tr class="xcnt"><td colspan="6">No. of grade ' + esc(b.grade) + '  (' + esc(b.level) + ')</td>' + names.map(function (n, i) { return '<td colspan="3" class="c">' + list.filter(function (s) { var p = sc(s, i); var bb = p == null || p === '' ? null : bandOf(bands, Number(p) / 100); return bb && bb.grade === b.grade; }).length + '</td>'; }).join('') + '<td colspan="4" class="c b">' + act.filter(function (s) { var bb = bandOf(bands, tot(s) / 100); return bb && bb.grade === b.grade; }).length + '</td></tr>'; }).join('');
+  h += '<div class="xsub">SUBJECT ASSESSMENT SUMMARY SHEET FOR ' + (AV.ap === 1 ? 'TERMS 1 AND 2' : 'TERMS 3 AND 4') + '</div><div class="wrap xw"><table class="xt2"><thead><tr><th rowspan="3">No</th><th rowspan="3">ID#</th><th rowspan="3">Surname</th><th rowspan="3">Name</th><th rowspan="3" class="xv">Sex</th><th rowspan="3" class="xv">Class</th>' +
+    names.map(function (n) { return '<th colspan="3">' + esc(String(n).toUpperCase()) + '</th>'; }).join('') + '<th colspan="4" class="xdh">OVERALL</th></tr><tr>' +
+    names.map(function () { return '<th class="xv">TOTAL</th><th class="xv">PERCENT</th><th class="xv">GRADING</th>'; }).join('') + '<th class="xv xdh">TOTAL</th><th class="xv xdh">PERCENT</th><th class="xv xdh">GRADE</th><th class="xv xdh">POSITION</th></tr><tr class="xmax">' +
+    names.map(function () { return '<td class="c">' + (max || '') + '</td><td class="c">100%</td><td class="c">–</td>'; }).join('') + '<td class="c">' + subTot + '</td><td class="c">100%</td><td></td><td></td></tr></thead><tbody>' + rows + avgRow + cnt + '</tbody></table></div>';
+  return h;
+}
+
+/* ---------------- Checklists (AWH G4–6, KSA G1–3, Skills Prep / G1 AP1) ---------------- */
+function xlChecks(d) {
+  needClass(d);
+  var g = gradeOfCc(AV.cc), gi = g === 'Prep' ? 0 : Number(g.slice(-1)), kind = gi === 0 || (gi === 1 && AV.ap === 1) ? 'SKL' : gi <= 3 ? 'KSA' : 'AWH';
+  var R = rcCalc({ setup: d.setup }), L = R.lists, groups;
+  if (kind === 'AWH') groups = [['ATTITUDES', L.AWH_A, 0, 8], ['*NOTDONE'], ['LEARNING & WORKING HABITS', L.AWH_H, 8, 10]];
+  else if (kind === 'KSA') groups = [['KNOWLEDGE', L.KSA_K, 0, 8], ['SKILLS', L.KSA_S, 8, 8], ['ATTITUDE', L.KSA_A, 16, 10], ['*NOTDONE'], ['LEARNING & WORKING HABITS', L.KSA_H, 26, 8]];
+  else groups = [['ENGLISH', L.PRE_E, 0, 10], ['MATHEMATICS', L.PRE_M, 10, 10], ['PERSONAL & SOCIAL (PSY)', L.PRE_P, 20, 10]];
+  var title = kind === 'AWH' ? 'ATTITUDES & WORK HABITS (Grades 4–6)' : kind === 'KSA' ? 'KNOWLEDGE, SKILLS & ATTITUDE (Grades 1–3)' : 'SKILLS REPORT ENTRY (Prep all year, Grade 1 AP1)';
+  var picks = xlPick('Year', yearSel('aY', d.years, d.year)) + xlPick('Grade', '<b>' + esc(g) + '</b>') + xlPick('Class', xlClassPick(d)) + xlPick('Term', '<b>' + (AV.ap === 1 ? 'Term 1 & 2' : 'Term 3 & 4') + '</b>') + xlPick('AP No#', xlApPick()) +
+    '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button>';
+  var h = xlFrame('check_mark_button', title, C.asm, picks);
+  var rates = R.rates.map(function (r) { return r.code + ' = ' + r.level; }).join(',  ');
+  h += '<div class="xinfo"><span>Supervisor <b>' + esc((d.supervisors || {})[AV.cc] || '') + '</b></span><span>Class/Subject Teacher <b>' + esc(d.teachers[AV.cc] || '') + '</b></span><span>Grading: <b>' + esc(rates) + '</b></span></div>';
+  h += xlBar((kind === 'AWH' ? 'CHECKLIST FOR ATTENDANCE, ATTITUDES AND LEARNING/WORKING HABITS' : kind === 'KSA' ? 'CHECKLIST FOR KNOWLEDGE, SKILLS, ATTITUDE AND HABITS' : 'SKILLS REPORT') + '  –  ' + esc(g) + ' ' + esc(String(AV.cc).replace(/^\d/, '')) + '  –  ' + (AV.ap === 1 ? 'Term 1 & 2' : 'Term 3 & 4') + ' (AP' + AV.ap + ')  –  ' + d.year);
+  h += '<p class="muted" style="font-style:italic;margin:4px 0">Ratings A, B, C or D are entered in the Excel checklist sheets and come here with Upload Online. Teacher comments are used on the report card.</p>';
+  var list = d.students.filter(function (s) { return s.cc === AV.cc; }).sort(function (a, b) { return (Number(a.no) || 999) - (Number(b.no) || 999) || a.sur.localeCompare(b.sur); });
+  var head1 = '<th rowspan="2">No</th><th rowspan="2">ID#</th><th rowspan="2">Surname</th><th rowspan="2">Name</th><th rowspan="2" class="xv">Sex</th><th rowspan="2" class="xv">Class</th><th rowspan="2" class="xv">DAYS ABSENT</th>', head2 = '';
+  groups.forEach(function (gp) {
+    if (gp[0] === '*NOTDONE') { head1 += '<th rowspan="2" class="xv">TOTAL ASSESSABLE TASKS NOT DONE</th>'; return; }
+    head1 += '<th colspan="' + gp[3] + '" class="xd">' + gp[0] + '</th>';
+    for (var i = 0; i < gp[3]; i++) head2 += '<th class="xv">' + esc(gp[1][i] || '') + '</th>';
+  });
+  head1 += '<th rowspan="2">Teacher comment (optional – used on report card)</th>';
+  var rows = list.map(function (s, k) {
+    var ck = (d.checks[s.id] || []).filter(function (c) { return c.ap === AV.ap; })[0], r = ck ? ck.r || [] : [];
+    var o = '<tr><td class="c">' + (s.no || k + 1) + '</td><td>' + esc(s.id) + '</td><td>' + esc(String(s.sur).toUpperCase()) + '</td><td>' + esc(s.name) + '</td><td class="c">' + esc(s.sex) + '</td><td class="c">' + esc(String(s.cc).replace(/^\d/, '')) + '</td><td class="c">' + (ck ? esc(ck.days === '' ? 0 : ck.days) : '') + '</td>';
+    groups.forEach(function (gp) {
+      if (gp[0] === '*NOTDONE') { o += '<td class="c">' + (ck ? esc(ck.notDone === '' || ck.notDone == null ? 0 : ck.notDone) : '') + '</td>'; return; }
+      for (var i = 0; i < gp[3]; i++) o += '<td class="c b">' + esc(gp[1][i] ? r[gp[2] + i] || '' : '') + '</td>';
+    });
+    return o + '<td style="font-size:11px">' + esc(ck ? ck.comment : '') + '</td></tr>';
+  }).join('');
+  return h + '<div class="wrap xw"><table class="xt2 xck"><thead><tr>' + head1 + '</tr><tr>' + head2 + '</tr></thead><tbody>' + rows + (list.length ? '' : '<tr><td colspan="40" class="muted">No students.</td></tr>') + '</tbody></table></div>';
+}
+
+/* ---------------- Student database ---------------- */
+function xlStudentDb(d) {
+  var picks = xlPick('Year', yearSel('aY', d.years, d.year)) + xlPick('Class', xlClassPick(d, true)) + xlPick('Search', '<input id="aQ" value="' + esc(AV.q) + '" placeholder="Name or ID">') + '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button>';
+  var q = AV.q.toLowerCase(), list = d.students.filter(function (s) { return (AV.cc === 'ALL' || s.cc === AV.cc) && (!q || (s.sur + ' ' + s.name + ' ' + s.id).toLowerCase().indexOf(q) >= 0); })
+    .sort(function (a, b) { return (d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) || a.sur.localeCompare(b.sur); });
+  return xlFrame('card_index', 'STUDENT DATABASE', C.asm, picks) + xlBar('STUDENT DATABASE  –  ' + d.year + (AV.cc !== 'ALL' ? '  –  ' + esc(AV.cc) : '  –  ALL CLASSES') + '  (' + list.length + ' students)') +
+    '<div class="wrap xw"><table class="xt2"><thead><tr>' + ['No', 'ID#', 'Surname', 'Name', 'Sex', 'Grade', 'Class', 'Date of Birth', 'Age', 'Church', 'Province', 'District', 'Village', 'Residence', 'Living with', 'Medical History', 'Status'].map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    list.map(function (s, i) { var f = s.info || {}; return '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(s.id) + '</td><td>' + esc(String(s.sur).toUpperCase()) + '</td><td>' + esc(s.name) + '</td><td class="c">' + esc(s.sex) + '</td><td>' + esc(s.grade) + '</td><td class="c">' + esc(String(s.cc).replace(/^\d/, '')) + '</td><td class="c">' + esc(s.dob || '') + '</td><td class="c">' + esc(f.age == null ? '' : f.age) + '</td>' +
+      [f.church, f.province, f.district, f.village, f.residence, f.living, f.medical].map(function (v) { return '<td>' + esc(v || '') + '</td>'; }).join('') + '<td>' + esc(s.status) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+}
+
+/* ---------------- yearly lists: Next grade, Repeat, Left, Withdrawn ---------------- */
+function xlYearList(d, kind) {
+  var bands = asmBands(d), T = { next: ['NEXT GRADE SELECTION LIST', 'graduation_cap'], repeat: ['REPEAT STUDENTS LIST', 'counterclockwise_arrows_button'], left: ['STUDENTS WHO LEFT SCHOOL', 'door'], withdrawn: ['STUDENTS WHO WITHDREW FROM SCHOOL', 'triangular_flag'] }[kind];
+  var picks = xlPick('Year', yearSel('aY', d.years, d.year)) + xlPick('Class', xlClassPick(d, true)) + '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button>';
+  var list = d.students.filter(function (s) {
+    if (AV.cc !== 'ALL' && s.cc !== AV.cc) return false;
+    if (kind === 'next') return /promote/i.test(s.result); if (kind === 'repeat') return /repeat/i.test(s.result);
+    if (kind === 'left') return /left/i.test(s.status); return /withdraw/i.test(s.status);
+  }).sort(function (a, b) { return (d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) || a.sur.localeCompare(b.sur); });
+  var pm = d.passMark <= 1 ? Math.round(d.passMark * 100) + '%' : d.passMark;
+  var nextG = function (g) { if (g === 'Prep') return 'Grade 1'; var n = Number(String(g).slice(-1)); return n >= 6 ? 'Grade 7 (Secondary)' : 'Grade ' + (n + 1); };
+  var cols = kind === 'next' || kind === 'repeat' ? ['No', 'ID#', 'Surname', 'Name', 'Sex', 'Grade', 'Class', 'Yearly Total', 'Cum. Max', 'Year %', 'Grade', 'Result'].concat(kind === 'next' ? ['Next Grade'] : []) : ['No', 'ID#', 'Surname', 'Name', 'Sex', 'Grade', 'Class', 'Date of Birth', 'AP1 %', 'AP2 %', 'Year %', 'Status'];
+  return xlFrame(T[1], T[0], C.asm, picks) + '<div class="xinfo"><span>Pass mark / benchmark from SETUP: <b>' + pm + '</b></span></div>' + xlBar(T[0] + '  –  ' + d.year + (AV.cc !== 'ALL' ? '  –  ' + esc(AV.cc) : '')) +
+    '<div class="wrap xw"><table class="xt2"><thead><tr>' + cols.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    list.map(function (s, i) {
+      var gm = (d.gradeMax || {})[s.grade] || {}, b = s.yr == null ? null : bandOf(bands, s.yr / 100);
+      var base = '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(s.id) + '</td><td>' + esc(String(s.sur).toUpperCase()) + '</td><td>' + esc(s.name) + '</td><td class="c">' + esc(s.sex) + '</td><td>' + esc(s.grade) + '</td><td class="c">' + esc(String(s.cc).replace(/^\d/, '')) + '</td>';
+      if (kind === 'next' || kind === 'repeat') return base + '<td class="c b">' + esc(s.ty == null ? '' : s.ty) + '</td><td class="c">' + (gm.cum || '') + '</td><td class="c">' + p1(s.yr) + '</td><td class="c b">' + (b ? b.grade : '') + '</td><td class="c b">' + esc(s.result) + '</td>' + (kind === 'next' ? '<td class="c">' + nextG(s.grade) + '</td>' : '') + '</tr>';
+      return base + '<td class="c">' + esc(s.dob || '') + '</td><td class="c">' + p1(s.ap1) + '</td><td class="c">' + p1(s.ap2) + '</td><td class="c">' + p1(s.yr) + '</td><td>' + esc(s.status) + '</td></tr>';
+    }).join('') + (list.length ? '' : '<tr><td colspan="13" class="muted">No students in this list.</td></tr>') + '</tbody></table></div><p class="muted">' + list.length + ' students</p>';
+}
+
+/* ---------------- Yearly transcript ---------------- */
+function xlTranscript(d) {
+  var pool = d.students.filter(function (s) { return AV.cc === 'ALL' || s.cc === AV.cc; }).sort(function (a, b) { return (d.classes.indexOf(a.cc) - d.classes.indexOf(b.cc)) || (Number(a.no) || 999) - (Number(b.no) || 999); });
+  if (!AV.sid || !pool.some(function (s) { return s.id === AV.sid; })) AV.sid = pool.length ? pool[0].id : '';
+  var st = pool.filter(function (s) { return s.id === AV.sid; })[0], bands = asmBands(d);
+  var picks = xlPick('Year', yearSel('aY', d.years, d.year)) + xlPick('Class', xlClassPick(d, true)) + xlPick('Student', '<select id="aS">' + pool.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === AV.sid ? ' selected' : '') + '>' + esc(s.cc + ' · ' + (s.no ? s.no + '. ' : '') + s.sur + ' ' + s.name) + '</option>'; }).join('') + '</select>') +
+    '<button class="btn" onclick="print()">' + ico('printer') + 'Print</button>';
+  var h = xlFrame('memo', 'YEARLY ACADEMIC STUDENT TRANSCRIPT', C.asm, picks);
+  if (!st) return h + '<p class="muted">No students.</p>';
+  var gm = (d.gradeMax || {})[st.grade] || {}, names = d.subjects[st.grade] || [], rep = d.reports[st.id] || {}, f = st.info || {};
+  var m1 = gm.max1 || 0, m2 = gm.max2 || 0, mt = (gm.total || (m1 + m2));
+  var gr = function (v, m) { return v == null || !m ? '' : (bandOf(bands, v / m) || {}).grade; };
+  var pos = function (k) { var me = st[k]; if (me == null) return '–'; var cl = d.students.filter(function (s) { return s.cc === st.cc && s[k] != null; }); return (cl.filter(function (s) { return s[k] > me; }).length + 1) + ' of ' + cl.length; };
+  var T = [0, 0, 0], any = [false, false, false];
+  var rows = names.map(function (n, i) {
+    var r = rep[i + 1] || [null, null], a = r[0] == null || r[0] === '' ? null : Math.round(Number(r[0]) / 100 * m1), b = r[1] == null || r[1] === '' ? null : Math.round(Number(r[1]) / 100 * m2), y = a == null && b == null ? null : (a || 0) + (b || 0);
+    if (a != null) { T[0] += a; any[0] = true; } if (b != null) { T[1] += b; any[1] = true; } if (y != null) { T[2] += y; any[2] = true; }
+    return n ? '<tr><td class="b">' + esc(n) + '</td><td class="c">' + (a == null ? '' : a) + '</td><td class="c">' + (a == null ? '' : Math.round(a / m1 * 100) + '%') + '</td><td class="c b">' + gr(a, m1) + '</td><td class="c">' + (b == null ? '' : b) + '</td><td class="c">' + (b == null ? '' : Math.round(b / m2 * 100) + '%') + '</td><td class="c b">' + gr(b, m2) + '</td>' +
+      '<td class="c">' + (y == null ? '' : y) + '</td><td class="c">' + (y == null ? '' : Math.round(y / mt * 100) + '%') + '</td><td class="c b">' + gr(y, mt) + '</td></tr>' : '';
+  }).join('');
+  var bg = function (p) { return p == null ? '' : (bandOf(bands, p / 100) || {}).grade; };
+  h += '<div class="xsheet"><div class="xsub">' + esc(d.setup && d.setup.schoolName || 'TOM HOEY PRIMARY SCHOOL') + '<br>YEARLY ACADEMIC STUDENT TRANSCRIPT  –  ' + d.year + '</div>' +
+    '<table class="xt2 xkv"><tr><td class="xl1">Student Name</td><td class="b">' + esc(String(st.sur).toUpperCase() + ' ' + st.name) + '</td><td class="xl1">ID No#</td><td>' + esc(st.id) + '</td></tr>' +
+    '<tr><td class="xl1">Date of Birth</td><td>' + esc(st.dob || '') + '</td><td class="xl1">Sex</td><td>' + esc(st.sex) + '</td></tr>' +
+    '<tr><td class="xl1">Grade / Class</td><td>' + esc(st.grade + '  /  ' + st.cc) + '</td><td class="xl1">Status</td><td>' + esc(st.status) + '</td></tr>' +
+    '<tr><td class="xl1">Village / District</td><td>' + esc((f.village || '') + (f.district ? ', ' + f.district : '')) + '</td><td class="xl1">Living with</td><td>' + esc(f.living || '') + '</td></tr></table><div class="gap"></div>' +
+    '<table class="xt2"><thead><tr><th rowspan="2">SUBJECT</th><th colspan="3" class="xd">ASSESSMENT PERIOD ONE (T1 &amp; T2)</th><th colspan="3" class="xd">ASSESSMENT PERIOD TWO (T3 &amp; T4)</th><th colspan="3" class="xdh">YEARLY RESULT</th></tr>' +
+    '<tr><th>Score</th><th>%</th><th>Grade</th><th>Score</th><th>%</th><th>Grade</th><th>Score</th><th>%</th><th>Grade</th></tr><tr class="xmax"><td>Maximum</td><td class="c">' + m1 + '</td><td></td><td></td><td class="c">' + m2 + '</td><td></td><td></td><td class="c">' + mt + '</td><td></td><td></td></tr></thead><tbody>' + rows +
+    '<tr class="xtot"><td>TOTAL</td><td class="c">' + (any[0] ? T[0] : '') + '</td><td class="c">' + p1(st.ap1) + '</td><td class="c">' + bg(st.ap1) + '</td><td class="c">' + (any[1] ? T[1] : '') + '</td><td class="c">' + p1(st.ap2) + '</td><td class="c">' + bg(st.ap2) + '</td><td class="c">' + (any[2] ? T[2] : '') + '</td><td class="c">' + p1(st.yr) + '</td><td class="c">' + bg(st.yr) + '</td></tr>' +
+    '<tr><td class="b">Position in class</td><td colspan="3" class="c">' + pos('ap1') + '</td><td colspan="3" class="c">' + pos('ap2') + '</td><td colspan="3" class="c">' + pos('yr') + '</td></tr>' +
+    '<tr><td class="b">Days absent</td><td colspan="3" class="c">' + esc(st.abs1 == null ? '' : st.abs1) + '</td><td colspan="3" class="c">' + esc(st.abs2 == null ? '' : st.abs2) + '</td><td colspan="3" class="c">' + ((Number(st.abs1) || 0) + (Number(st.abs2) || 0)) + '</td></tr></tbody></table>' +
+    xlBar('YEARLY RESULT') + '<div class="xres">' + esc(st.result ? st.result + (/promote/i.test(st.result) ? ' – to ' + (st.grade === 'Prep' ? 'Grade 1' : 'Grade ' + (Number(st.grade.slice(-1)) + 1)) : '') : '–') + '</div>' +
+    '<p style="margin-top:14px">Remarks: ______________________________________________________________</p>' +
+    '<table class="foot2"><tr><td>Class Teacher:</td><td class="b">' + esc(d.teachers[st.cc] || '') + '</td><td>Signature:</td><td class="ln"></td></tr><tr><td>Head Teacher:</td><td class="b">' + esc(d.headTeacher || 'Mr Saun Aloksep') + '</td><td>Signature:</td><td class="ln"></td></tr>' +
+    '<tr><td>Date issued:</td><td>' + new Date().toLocaleDateString('en-AU') + '</td><td>School stamp:</td><td class="ln"></td></tr></table></div>';
+  return h;
+}
+var XLV = { saps: xlSaps, sass: xlSass, checks: xlChecks, studentdb: xlStudentDb, transcript: xlTranscript,
+  next: function (d) { return xlYearList(d, 'next'); }, repeat: function (d) { return xlYearList(d, 'repeat'); }, left: function (d) { return xlYearList(d, 'left'); }, withdrawn: function (d) { return xlYearList(d, 'withdrawn'); } };
+
+/* ------------------------------------------------------------------ MESSAGES & THIS WEEK'S SCHEDULE (notifications) */
+var MSG = { d: null, unread: 0, timer: null };
+function msgAuth() { return AUTH && AUTH.user ? AUTH : MA(); }
+function weekGrid(w) {
+  if (!w) return '';
+  var start = new Date(w.from + 'T00:00:00'), t = today(), out = '';
+  for (var k = 0; k < 2; k++) {
+    out += '<div class="muted" style="font-size:12px;font-weight:700;margin:6px 0 3px">' + (k === 0 ? 'THIS WEEK' : 'NEXT WEEK') + '</div><div class="wk">';
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(start.getTime() + (k * 7 + i) * 864e5), ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      var ev = w.events.filter(function (e) { return e.date <= ds && (e.end || e.date) >= ds; });
+      out += '<div class="' + (ds === t ? 'today' : '') + '"><b>' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i] + ' ' + d.getDate() + '/' + (d.getMonth() + 1) + '</b>' + ev.map(function (e) { return '<span title="' + esc(e.notes) + '">' + esc(e.title) + '</span>'; }).join('') + '</div>';
+    }
+    out += '</div>';
+  }
+  return out;
+}
+function msgCard(m) {
+  return '<div class="msg' + (m.read ? '' : ' unread') + '" style="--c:' + (m.mine ? '#7A4E2D' : '#2F5597') + '"><h4>' + ico('envelope_with_arrow') + esc(m.title) + (m.read ? '' : ' <span class="tag new">new</span>') + '</h4>' +
+    '<div class="meta">From <b>' + esc(m.fromName || m.from) + '</b> to <b>' + esc(m.to) + '</b> · ' + fmtDate(m.date) + '</div><p>' + esc(m.body) + '</p>' +
+    (m.mine || (ME && ME.admin) ? '<div style="text-align:right"><button class="btn" data-mdel="' + esc(m.key) + '" style="padding:4px 10px;font-size:12px">' + ico('wastebasket') + 'Delete</button></div>' : '') + '</div>';
+}
+function setBadge(n) {
+  MSG.unread = n;
+  var b = $('.nav[data-p="messages"]');
+  if (b) { var x = $('.badge', b); if (x) x.remove(); if (n) b.insertAdjacentHTML('beforeend', '<span class="badge">' + n + '</span>'); }
+}
+function checkMessages(first) {
+  if (!MAIN) return Promise.resolve();
+  return call('apiMessages', msgAuth()).then(function (d) {
+    var before = MSG.d ? MSG.d.messages.filter(function (m) { return !m.read; }).map(function (m) { return m.key; }) : null;
+    MSG.d = d; ls(ckey('msgs'), d); setBadge(d.unread);
+    if ($('#homeMsg')) { $('#homeMsg').innerHTML = homeMsgPanel(); $$('#homeMsg [data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; }); }
+    var fresh = d.messages.filter(function (m) { return !m.read && (!before || before.indexOf(m.key) < 0); });
+    if (fresh.length && (first || before)) {
+      toast(fresh.length === 1 ? 'New message: ' + fresh[0].title : 'You have ' + fresh.length + ' new messages');
+      try { if (!first && window.Notification && Notification.permission === 'granted') new Notification('THPS School Manager', { body: fresh.map(function (m) { return m.title; }).join('\n'), icon: 'img/app-192.png' }); } catch (e) {}
+    }
+  }).catch(function () { var c = ls(ckey('msgs')); if (c) { MSG.d = c; setBadge(c.unread); } });
+}
+function startMessages() { if (MSG.timer) clearInterval(MSG.timer); checkMessages(true); MSG.timer = setInterval(function () { checkMessages(false); }, 4 * 60000); }
+function pageMessages() {
+  var draw = function (d) {
+    var unread = d.messages.filter(function (m) { return !m.read; }).map(function (m) { return m.key; });
+    var h = head('envelope_with_arrow', 'Messages & This Week', 'Messages', 'Messages from the Head Teacher and staff, and the term dates, events and duties for this week and next. ' + (d._offline ? '<span style="color:#b35c00">Offline copy.</span>' : ''));
+    var main = '<div class="panel" style="--c:#2F5597"><h3>' + ico('spiral_calendar') + 'This week\'s schedule</h3>' + weekGrid(d.week) + '<p class="muted" style="font-size:12px;margin:6px 0 0">Add term dates, events and duties in <b>Admin Routines</b>.</p></div>';
+    main += '<div class="bar"><button class="btn pri" id="mNew">' + ico('plus') + 'New message</button><button class="btn" id="mBell">' + ico('warning') + 'Notifications on this device</button><span class="muted">' + d.messages.length + ' messages · ' + unread.length + ' new</span></div>';
+    main += d.messages.length ? d.messages.map(msgCard).join('') : '<p class="muted">No messages yet.</p>';
+    var side = '<div class="panel" style="--c:#2F5597"><h3>' + ico('clipboard') + 'Summary</h3>' + kvTable([['Signed in as', esc(d.name || d.user)], ['New messages', unread.length], ['All messages', d.messages.length], ['Events this week', d.week ? d.week.events.filter(function (e) { return e.date < new Date(new Date(d.week.from).getTime() + 7 * 864e5).toISOString().slice(0, 10); }).length : 0]]) + '</div>' +
+      shortcuts([['data-go="Events"', 'spiral_calendar', 'Admin Routines'], ['data-go="home"', 'house', 'Main Home'], ['onclick="print()"', 'printer', 'Print']], '#2F5597');
+    $('#page').innerHTML = h + lay(side, main);
+    $$('[data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; });
+    $('#mNew').onclick = function () { msgForm(d); };
+    $('#mBell').onclick = function () {
+      if (!window.Notification) return toast('This browser cannot show notifications. Messages still show here with a red number.', 1);
+      Notification.requestPermission().then(function (p) { toast(p === 'granted' ? 'Notifications are on for this device.' : 'Notifications are off. Messages still show here.'); });
+    };
+    $$('[data-mdel]').forEach(function (b) { b.onclick = function () { if (!confirm('Delete this message for everyone?')) return; call('apiDeleteMessage', msgAuth(), b.dataset.mdel).then(function () { toast('Deleted'); pageMessages(); }).catch(function (e) { toast(errText(e), 1); }); }; });
+    if (unread.length && !d._offline) call('apiReadMessages', msgAuth(), unread).then(function () { setBadge(0); if (MSG.d) MSG.d.messages.forEach(function (m) { m.read = true; }); }).catch(function () {});
+  };
+  load('msgs', 'apiMessages', msgAuth()).then(function (d) { MSG.d = d; draw(d); }).catch(function (e) { $('#page').innerHTML = '<div class="note bad">' + esc(errText(e)) + '</div>'; });
+}
+function msgForm(d) {
+  formModal('New message', 'envelope_with_arrow', [['to', 'Send to', d.to, 1], ['title', 'Title', 'text', 1], ['body', 'Message', 'area', 1], ['email', 'Also send by email', ['No', 'Yes']]], { to: 'Teachers', email: 'Yes' }, {
+    canWrite: true, note: 'Everyone it is sent to sees it with a red number when they open the School Manager. Email goes to staff who have an email address in Teachers › Staff details.',
+    onSave: function (o) {
+      call('apiPostMessage', msgAuth(), { to: o.to, title: o.title, body: o.body, email: o.email === 'Yes', key: 'M' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) })
+        .then(function (r) { toast('Message sent' + (r.emailed ? ' – emailed to ' + r.emailed : '')); pageMessages(); })
+        .catch(function (e) { toast(errText(e) === 'No network' ? 'Sending a message needs the internet.' : 'Not sent: ' + errText(e), 1); });
+    }
+  });
+}
+function homeMsgPanel() {
+  var d = MSG.d || ls(ckey('msgs'));
+  if (!d) return '<div class="panel" style="--c:#2F5597"><h3>' + ico('envelope_with_arrow') + 'Messages &amp; this week</h3><p class="muted">Loading…</p></div>';
+  var t = today(), wk = d.week ? d.week.events.filter(function (e) { return (e.end || e.date) >= t; }).slice(0, 4) : [];
+  return '<div class="panel" style="--c:#2F5597"><h3>' + ico('envelope_with_arrow') + 'Messages &amp; this week' + (d.unread ? '<span class="badge">' + d.unread + '</span>' : '') + '</h3>' +
+    (d.messages.slice(0, 3).map(function (m) { return '<div style="border-bottom:1px solid #e1e4e8;padding:5px 0' + (m.read ? '' : ';font-weight:700') + '">' + esc(m.title) + '<br><small class="muted">' + esc(m.fromName || m.from) + ' · ' + fmtDate(m.date) + '</small></div>'; }).join('') || '<p class="muted">No messages.</p>') +
+    '<div class="muted" style="font-size:12px;font-weight:700;margin-top:8px">THIS WEEK</div>' + (wk.length ? wk.map(function (e) { return '<div style="font-size:13px">' + fmtDate(e.date) + ' – <b>' + esc(e.title) + '</b></div>'; }).join('') : '<p class="muted" style="margin:2px 0">Nothing listed.</p>') +
+    '<button class="btn" data-go="messages" style="margin-top:8px">' + ico('envelope_with_arrow') + 'Open messages</button></div>';
+}
+
+/* ------------------------------------------------------------------ type an ID (or a name) and the rest fills in */
+var PEOPLE = null;
+function loadPeople() {
+  if (PEOPLE) return Promise.resolve(PEOPLE);
+  return load('people', 'apiPeople', MA()).then(function (d) { PEOPLE = d.people || []; return PEOPLE; }).catch(function () { return []; });
+}
+function personText(p) { return p.t === 'S' ? p.name + ' - ' + p.cc + ' (' + p.id + ')' : p.name + (p.cc ? ' - ' + p.cc : '') + (p.id ? ' (' + p.id + ')' : ''); }
+function attachPeople(root) {
+  var inputs = $$('[data-f="Person"],[data-f="People"],[data-f="ReportedBy"],[data-f="Payee"],[data-f="Name"]', root).filter(function (el) { return el.tagName === 'INPUT'; });
+  if (!inputs.length) return;
+  loadPeople().then(function (list) {
+    if (!list.length) return;
+    if (!$('#peopleList')) { var dl = document.createElement('datalist'); dl.id = 'peopleList'; document.body.appendChild(dl); }
+    $('#peopleList').innerHTML = list.map(function (p) { return '<option value="' + esc(p.id + ' — ' + p.name + (p.cc ? ' (' + p.cc + ')' : '')) + '">' + (p.t === 'S' ? 'Student' : 'Teacher') + '</option>'; }).join('');
+    inputs.forEach(function (el) {
+      el.setAttribute('list', 'peopleList'); el.setAttribute('autocomplete', 'off');
+      if (!el.placeholder) el.placeholder = 'Type an ID or a name';
+      el.addEventListener('change', function () {
+        var v = el.value.trim(), id = v.split(' — ')[0].toUpperCase();
+        var p = list.filter(function (x) { return String(x.id).toUpperCase() === id; })[0] || list.filter(function (x) { return x.name.toLowerCase() === v.toLowerCase(); })[0];
+        if (p) { el.value = personText(p); el.style.background = '#eef8f1'; }
+      });
+    });
+  });
 }
 
 /* ------------------------------------------------------------------ boot */
